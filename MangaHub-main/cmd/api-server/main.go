@@ -9,11 +9,14 @@ import (
 	"database/sql"
 	"path/filepath"
 	"time"
+	"mangahub/internal/tcp"
 
     "github.com/google/uuid"
 	"github.com/gin-gonic/gin"
 	"github.com/gin-contrib/cors"
 )
+
+var progressHub *tcp.Hub // global
 
 func main() {
 	// Initialize database
@@ -21,6 +24,9 @@ func main() {
 		log.Fatal("Failed to initialize database:", err)
 	}
 	defer database.Close()
+
+	progressHub = tcp.GlobalHub  
+	go progressHub.Run()        // Start broadcasting goroutine
 
 	if err := database.SeedManga(); err != nil {
 		log.Printf("Warning: Failed to seed manga data: %v", err)
@@ -39,7 +45,7 @@ func main() {
 		AllowCredentials: true,
 		MaxAge:           12 * time.Hour,
 	}))
-	
+
 	// Serve the web interface 
 	router.GET("/", func(c *gin.Context) {
 		c.File(filepath.Join("web", "index.html"))
@@ -281,6 +287,21 @@ func updateProgressHandler(c *gin.Context) {
 		CurrentChapter int    `json:"current_chapter" binding:"gte=0"`
 		Status         string `json:"status" binding:"oneof=reading completed plan_to_read"`
 	}
+
+	var mangaTitle string
+    database.DB.QueryRow("SELECT title FROM manga WHERE id = ?", req.MangaID).Scan(&mangaTitle)
+
+    var username string
+    database.DB.QueryRow("SELECT username FROM users WHERE id = ?", userID).Scan(&username)
+
+    progressHub.BroadcastProgress(models.UserProgress{
+        UserID:         userID,
+        MangaID:        req.MangaID,
+        CurrentChapter: req.CurrentChapter,
+        Status:         req.Status,
+    }, username, mangaTitle)
+
+	
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return

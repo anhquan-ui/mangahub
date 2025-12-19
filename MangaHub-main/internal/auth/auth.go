@@ -10,7 +10,7 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-// JWTSecret is used to sign tokens (change this in production!)
+// JWTSecret is used to sign tokens 
 var JWTSecret = []byte("your-secret-key-change-this-in-production")
 
 // Claims represents JWT claims

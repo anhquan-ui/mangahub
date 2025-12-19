@@ -117,9 +117,6 @@ func SeedManga() error {
         {ID:"black-clover", Title:"Black Clover", Author:"Yūki Tabata", Genres:[]string{"Fantasy","Action","Adventure"}, Status:"completed", TotalChapters:368, Description:"A boy born without magic strives to become the Wizard King in a world where magic is everything."},
         {ID:"jujutsu-kaisen", Title:"Jujutsu Kaisen", Author:"Gege Akutami", Genres:[]string{"Supernatural","Action","Dark Fantasy"}, Status:"completed", TotalChapters:271, Description:"A high school student becomes involved in the dangerous world of curses and jujutsu sorcerers."},
         {ID:"boku-no-hero-academia", Title:"My Hero Academia", Author:"Kohei Horikoshi", Genres:[]string{"Superhero","Action","Drama"}, Status:"completed", TotalChapters:430, Description:"In a world where most people have superpowers, a powerless boy dreams of becoming a hero."},
-
-		// From major genres: shounen, shoujo, seinen, josei (15-20 per genre as per project)
-		// Use real manga names for realism
 	}
 
 	for _, m := range mangas {
@@ -132,7 +129,7 @@ func SeedManga() error {
 			return err
 		}
 	}
-	log.Println("Seeded 30 manga entries")
+	log.Println("Seeded manga entries")
 	return nil
 }
 
