@@ -25,7 +25,6 @@ type Hub struct {
 	mu         sync.RWMutex
 }
 
-// ← THIS IS THE CORRECT INITIALIZATION
 var GlobalHub = &Hub{
 	clients:    make(map[*Client]bool),
 	broadcast:  make(chan []byte),
