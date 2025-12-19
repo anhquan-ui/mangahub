@@ -66,6 +66,7 @@ func ValidateToken(tokenString string) (*Claims, error) {
 
 // GenerateID generates a random unique ID
 func GenerateID(prefix string) string {
+	
 	bytes := make([]byte, 8)
 	rand.Read(bytes)
 	return prefix + "_" + hex.EncodeToString(bytes)

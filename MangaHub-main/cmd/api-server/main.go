@@ -7,9 +7,12 @@ import (
 	"mangahub/pkg/models"
 	"net/http"
 	"database/sql"
+	"path/filepath"
+	"time"
 
     "github.com/google/uuid"
 	"github.com/gin-gonic/gin"
+	"github.com/gin-contrib/cors"
 )
 
 func main() {
@@ -26,6 +29,21 @@ func main() {
 
 	// Create Gin router
 	router := gin.Default()
+
+	// CORS middleware for web interface
+	router.Use(cors.New(cors.Config{
+		AllowOrigins:     []string{"http://127.0.0.1:5500", "http://localhost:5500"},
+		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization"},
+		ExposeHeaders:    []string{"Content-Length"},
+		AllowCredentials: true,
+		MaxAge:           12 * time.Hour,
+	}))
+	
+	// Serve the web interface 
+	router.GET("/", func(c *gin.Context) {
+		c.File(filepath.Join("web", "index.html"))
+	})
 
 	// Public routes (no token needed)
 	public := router.Group("/")

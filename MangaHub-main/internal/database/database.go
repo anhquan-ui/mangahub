@@ -83,7 +83,7 @@ func createTables() error {
 
 func SeedManga() error {
 	mangas := []models.Manga{
-		{ID:"one-piece", Title:"One Piece", Author:"Ochiro Oda", Genres:[]string{"Action", "Adventure", "Shounen"}, Status:"ongoing", TotalChapters:1100, Description:"Pirate adventure"},
+		{ID:"one-piece", Title:"One Piece", Author:"Eiichiro Oda", Genres:[]string{"Action", "Adventure", "Shounen"}, Status:"ongoing", TotalChapters:1100, Description:"Pirate adventure"},
 		{ID:"demon-slayer", Title:"Demon Slayer: Kimetsu no Yaiba", Author:"Koyoharu Gotouge", Genres:[]string{"Action","Supernatural","Adventure"}, Status:"completed", TotalChapters:205, Description:"Tanjiro fights demons after his family is slaughtered."},
 		{ID:"attack-on-titan", Title:"Attack on Titan", Author:"Hajime Isayama", Genres:[]string{"Action", "Drama", "Mystery"}, Status:"completed", TotalChapters:139, Description:"Humanity fights for survival against giant Titans.",},
 		{ID:"naruto", Title:"Naruto", Author:"Masashi Kishimoto", Genres: []string{"Action", "Shounen"}, Status:"completed", TotalChapters:700, Description:"Ninja story"},
