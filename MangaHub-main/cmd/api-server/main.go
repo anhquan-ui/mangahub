@@ -1,22 +1,20 @@
 package main
 
 import (
-	"bytes"
-	"encoding/json"
+	"database/sql"
 	"log"
+	"mangahub/internal/auth"
+	"mangahub/internal/database"
+	"mangahub/internal/tcp"
+	"mangahub/internal/udp"
+	"mangahub/pkg/models"
 	"net/http"
 	"path/filepath"
 	"time"
-	"database/sql"
 
-	"mangahub/internal/auth"
-	"mangahub/internal/database"
-	"mangahub/pkg/models"
-	"mangahub/internal/shared"
-
-	"github.com/google/uuid"
-	"github.com/gin-gonic/gin"
 	"github.com/gin-contrib/cors"
+	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 )
 
 const tcpServerURL = "http://localhost:9091/internal/progress"
@@ -26,6 +24,9 @@ func main() {
 		log.Fatal("Failed to initialize database:", err)
 	}
 	defer database.Close()
+
+	progressHub = tcp.GlobalHub
+	go progressHub.Run() // Start broadcasting goroutine
 
 	if err := database.SeedManga(); err != nil {
 		log.Printf("Warning: Failed to seed manga data: %v", err)
@@ -42,6 +43,7 @@ func main() {
 		MaxAge:           12 * time.Hour,
 	}))
 
+	// Serve the web interface
 	router.GET("/", func(c *gin.Context) {
 		c.File(filepath.Join("web", "index.html"))
 	})
@@ -55,15 +57,21 @@ func main() {
 	protected := router.Group("/")
 	protected.Use(auth.Middleware())
 	{
-		protected.GET("/manga", getMangaHandler)
+		protected.GET("/manga", getMangaHandler) // Now protected
 		protected.GET("/manga/:id", getMangaDetailHandler)
 		protected.POST("/manga", createMangaHandler)
 		protected.POST("/users/library", addToLibraryHandler)
 		protected.GET("/users/library", getLibraryHandler)
 		protected.PUT("/users/progress", updateProgressHandler)
+		// Add more endpoints here soon
 	}
 
-	log.Println("API Server starting on http://localhost:8080")
+	go udp.GlobalHub.Run()
+	udp.StartUDPListener(":9091")
+	log.Println("UDP Notification Server started on :9091")
+
+	// Start http server
+	log.Println("Server starting on http://localhost:8080")
 	router.Run(":8080")
 }
 
@@ -129,6 +137,7 @@ func loginHandler(c *gin.Context) {
 	})
 }
 
+// getMangaHandler handles manga search
 func getMangaHandler(c *gin.Context) {
 	title := c.Query("title")
 	genre := c.Query("genre")
@@ -195,8 +204,8 @@ func createMangaHandler(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	manga.ID = uuid.New().String()
-	manga.PreSave()
+	manga.ID = uuid.New().String() // Generate ID
+	manga.PreSave()                // Convert genres array to string
 
 	_, err := database.DB.Exec(
 		"INSERT INTO manga (id, title, author, genres, status, total_chapters, description) VALUES (?, ?, ?, ?, ?, ?, ?)",
@@ -270,54 +279,41 @@ func updateProgressHandler(c *gin.Context) {
 		CurrentChapter int    `json:"current_chapter" binding:"gte=0"`
 		Status         string `json:"status" binding:"omitempty,oneof=reading completed plan_to_read"`
 	}
+
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	_, err := database.DB.Exec(`
-		UPDATE user_progress 
-		SET current_chapter = ?, updated_at = CURRENT_TIMESTAMP
-		WHERE user_id = ? AND manga_id = ?
-	`, req.CurrentChapter, userID, req.MangaID)
+	// Fetch manga title and username safely
+	var mangaTitle, username string
+	if err := database.DB.QueryRow("SELECT title FROM manga WHERE id = ?", req.MangaID).Scan(&mangaTitle); err != nil {
+		mangaTitle = "Unknown Manga"
+	}
+	if err := database.DB.QueryRow("SELECT username FROM users WHERE id = ?", userID).Scan(&username); err != nil {
+		username = "Unknown User"
+	}
+
+	// Broadcast to TCP and UDP
+	progress := models.UserProgress{
+		UserID:         userID,
+		MangaID:        req.MangaID,
+		CurrentChapter: req.CurrentChapter,
+		Status:         req.Status,
+	}
+
+	progressHub.BroadcastProgress(progress, username, mangaTitle)
+	udp.GlobalHub.BroadcastProgress(progress, username, mangaTitle)
+
+	// Update database
+	_, err := database.DB.Exec(
+		"UPDATE user_progress SET current_chapter = ?, status = ?, updated_at = CURRENT_TIMESTAMP WHERE user_id = ? AND manga_id = ?",
+		req.CurrentChapter, req.Status, userID, req.MangaID,
+	)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update progress"})
 		return
 	}
 
-	if req.Status != "" {
-		_, err = database.DB.Exec(`
-			UPDATE user_progress SET status = ? WHERE user_id = ? AND manga_id = ?
-		`, req.Status, userID, req.MangaID)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update status"})
-			return
-		}
-	}
-
 	c.JSON(http.StatusOK, gin.H{"message": "Progress updated"})
-
-	// Broadcast to TCP server
-	var mangaTitle, username string
-	if err := database.DB.QueryRow("SELECT title FROM manga WHERE id = ?", req.MangaID).Scan(&mangaTitle); err != nil {
-		log.Println("Error fetching manga title:", err)
-		return
-	}
-	if err := database.DB.QueryRow("SELECT username FROM users WHERE id = ?", userID).Scan(&username); err != nil {
-		log.Println("Error fetching username:", err)
-		return
-	}
-
-	payload := shared.ProgressUpdate{
-		UserID:         userID,
-		Username:       username,
-		MangaID:        req.MangaID,
-		MangaTitle:     mangaTitle,
-		CurrentChapter: req.CurrentChapter,
-		Status:         req.Status,
-		Timestamp:      time.Now().Unix(),
-	}
-
-	jsonData, _ := json.Marshal(payload)
-	go http.Post(tcpServerURL, "application/json", bytes.NewBuffer(jsonData))
 }
