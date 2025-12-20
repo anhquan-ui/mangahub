@@ -15,15 +15,13 @@
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             min-height: 100vh;
             color: white;
-            background: #0f0f1e center center fixed no-repeat; /* Dark fallback */
+            background: #0f0f1e center center fixed no-repeat;
             background-size: cover;
             transition: background-image 0.5s ease-in-out;
         }
-        /* Main menu background */
         body.main-bg {
             background-image: url('https://i.ebayimg.com/images/g/c3cAAOSwVsRmDZh6/s-l1200.png');
         }
-        /* All sections background */
         body.section-bg {
             background-image: url('https://static0.colliderimages.com/wordpress/wp-content/uploads/2023/10/jujutsu-kaisen-poster.jpg');
         }
@@ -115,8 +113,32 @@
             border-radius: 25px;
             text-align: left;
             border-left: 10px solid #667eea;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 20px;
+        }
+        .manga-info {
+            flex: 1;
+            min-width: 300px;
         }
         .manga-card h3 { font-size: 2.5em; margin-bottom: 20px; }
+        .progress-controls {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        .progress-controls input[type="number"] {
+            width: 120px;
+            padding: 15px;
+        }
+        .progress-controls button {
+            padding: 15px 30px;
+            font-size: 1.4em;
+            margin: 0;
+        }
         .success { color: #28a745; font-size: 2em; }
         .error { color: #dc3545; font-size: 2em; }
         .loading { color: #667eea; font-style: italic; font-size: 1.8em; }
@@ -177,7 +199,7 @@
             <div class="result" id="search_result"></div>
         </div>
 
-        <!-- Library Section -->
+        <!-- Library Section with Chapter Update -->
         <div id="library" class="section">
             <button class="back-btn" onclick="showMain()">← Back to Menu</button>
             <h2>📚 My Library</h2>
@@ -237,7 +259,7 @@
                 res.ok ? setResult('register_result', `<p class="success">✅ Registered successfully!</p>`) 
                        : setResult('register_result', `<p class="error">❌ ${data.error}</p>`);
             } catch (err) {
-                setResult('register_result', `<p class="error">❌ Network error</p>`);
+                setResult('register_result', '<p class="error">❌ Network error</p>');
             }
         }
 
@@ -265,7 +287,7 @@
                     setResult('login_result', `<p class="error">❌ ${data.error}</p>`);
                 }
             } catch (err) {
-                setResult('login_result', `<p class="error">❌ Network error</p>`);
+                setResult('login_result', '<p class="error">❌ Network error</p>');
             }
         }
 
@@ -312,7 +334,7 @@
 
         async function getLibrary() {
             if (!token) return alert('Login first!');
-            setResult('library_result', '<p class="loading">Loading...</p>');
+            setResult('library_result', '<p class="loading">Loading library...</p>');
             try {
                 const res = await fetch(`${API_URL}/users/library`, { headers: {'Authorization': `Bearer ${token}`} });
                 const data = await res.json();
@@ -321,17 +343,23 @@
                     data.library.forEach(item => {
                         html += `
                             <div class="manga-card">
-                                <h3>${item.title}</h3>
-                                <p><strong>Status:</strong> ${item.status}</p>
-                                <p><strong>Progress:</strong> Chapter ${item.current_chapter || 0}</p>
+                                <div class="manga-info">
+                                    <h3>${item.title}</h3>
+                                    <p><strong>Status:</strong> ${item.status}</p>
+                                    <p><strong>Progress:</strong> Chapter ${item.current_chapter || 0}</p>
+                                </div>
+                                <div class="progress-controls">
+                                    <input type="number" id="chapter-${item.manga_id}" placeholder="New chapter" min="0" value="${item.current_chapter || 0}">
+                                    <button onclick="updateChapter('${item.manga_id}')">Update Chapter</button>
+                                </div>
                             </div>`;
                     });
                     setResult('library_result', html);
                 } else {
-                    setResult('library_result', '<p>Your library is empty.</p>');
+                    setResult('library_result', '<p>Your library is empty. Add some manga!</p>');
                 }
             } catch (err) {
-                setResult('library_result', '<p class="error">❌ Error</p>');
+                setResult('library_result', '<p class="error">❌ Error loading library</p>');
             }
         }
 
@@ -349,13 +377,47 @@
                     body: JSON.stringify({manga_id, status})
                 });
                 const data = await res.json();
-                res.ok ? setResult('add_result', `<p class="success">✅ Added!</p>`) 
+                res.ok ? setResult('add_result', `<p class="success">✅ Added to library!</p>`) 
                        : setResult('add_result', `<p class="error">❌ ${data.error}</p>`);
-                getLibrary();
+                getLibrary(); // Refresh
             } catch (err) {
                 setResult('add_result', '<p class="error">❌ Error</p>');
             }
         }
+
+       async function updateChapter(manga_id) {
+    if (!token) return alert('Login first!');
+    const input = document.getElementById(`chapter-${manga_id}`);
+    const chapter = parseInt(input.value);
+    if (isNaN(chapter) || chapter < 0) {
+        alert('Please enter a valid chapter number (0 or higher)');
+        return;
+    }
+
+    try {
+        const res = await fetch(`${API_URL}/users/progress`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({
+                manga_id: manga_id,
+                current_chapter: chapter
+                // ← We do NOT send "status" here anymore
+            })
+        });
+        const data = await res.json();
+        if (res.ok) {
+            alert('Chapter updated successfully!');
+            getLibrary(); // Refresh to show new chapter
+        } else {
+            alert('Error: ' + (data.error || 'Failed to update'));
+        }
+    } catch (err) {
+        alert('Network error: ' + err.message);
+    }
+}
 
         window.onload = showMain;
     </script>
