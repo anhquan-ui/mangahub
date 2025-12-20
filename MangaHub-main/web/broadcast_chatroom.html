@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>MangaHub Chat</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        .container {
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            width: 90%;
+            max-width: 800px;
+            height: 600px;
+            display: flex;
+            flex-direction: column;
+        }
+        body.dark .container {
+            background: #1f1f1f;
+        }
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 15px 15px 0 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .header h1 { font-size: 24px; }
+        .online-count {
+            background: rgba(255,255,255,0.2);
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 14px;
+        }
+        #login-screen {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 40px;
+        }
+        #login-screen input {
+            width: 300px;
+            padding: 15px;
+            margin: 10px;
+            border: 2px solid #667eea;
+            border-radius: 8px;
+            font-size: 16px;
+        }
+        #login-screen button {
+            width: 300px;
+            padding: 15px;
+            margin: 10px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        #login-screen button:hover {
+            background: #764ba2;
+        }
+        #chat-screen {
+            display: none;
+            flex: 1;
+            flex-direction: column;
+        }
+        #messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            background: #f8f9fa;
+        }
+        body.dark #messages {
+            background: #121212;
+        }
+        .message {
+            margin: 10px 0;
+            padding: 12px;
+            border-radius: 8px;
+            animation: slideIn 0.3s ease;
+        }
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .message.chat {
+            background: #e3f2fd;
+            border-left: 4px solid #667eea;
+        }
+        body.dark .message.chat {
+            background: #2a2a2a;
+            border-left: 4px solid #667eea;
+            color: #e4e6eb;
+        }
+        .message.system {
+            background: #fff3e0;
+            border-left: 4px solid #ff9800;
+            font-style: italic;
+            text-align: center;
+            color: #e65100;
+        }
+        body.dark .message.system {
+            background: #3d2a00;
+            border-left: 4px solid #ff9800;
+            color: #ffcc80;
+        }
+        .message .username {
+            font-weight: bold;
+            color: #667eea;
+            margin-right: 8px;
+            display: inline;
+        }
+        body.dark .message .username {
+            color: #8b9ef7;
+        }
+        .message .time {
+            color: #999;
+            font-size: 12px;
+            margin-left: 8px;
+            float: right;
+        }
+        body.dark .message .time {
+            color: #777;
+        }
+        .message .text {
+            display: inline;
+            word-wrap: break-word;
+        }
+        #typing-indicator {
+            display: none;
+            padding: 10px 20px;
+            color: #666;
+            font-style: italic;
+            background: #f8f9fa;
+            font-size: 13px;
+        }
+        body.dark #typing-indicator {
+            background: #1a1a1a;
+            color: #999;
+        }
+        .input-area {
+            display: flex;
+            padding: 20px;
+            background: white;
+            border-top: 1px solid #ddd;
+            border-radius: 0 0 15px 15px;
+        }
+        body.dark .input-area {
+            background: #1f1f1f;
+            border-top-color: #333;
+        }
+        .input-area input {
+            flex: 1;
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+        .input-area input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        body.dark .input-area input {
+            background: #2a2a2a;
+            border-color: #444;
+            color: #e4e6eb;
+        }
+        .input-area button {
+            margin-left: 10px;
+            padding: 12px 25px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        .input-area button:hover {
+            background: #764ba2;
+        }
+        .input-area button.leave-btn {
+            background: #f44336;
+        }
+        .input-area button.leave-btn:hover {
+            background: #d32f2f;
+        }
+        .status {
+            text-align: center;
+            padding: 10px;
+            font-size: 12px;
+            color: #666;
+        }
+        body.dark .status {
+            color: #999;
+        }
+        .status.connected { color: #4caf50; }
+        .status.disconnected { color: #f44336; }
+
+        /* Confirmation Modal */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+            animation: fadeIn 0.2s;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        .modal-content {
+            background-color: white;
+            margin: 15% auto;
+            padding: 30px;
+            border-radius: 15px;
+            width: 90%;
+            max-width: 400px;
+            text-align: center;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+            animation: slideDown 0.3s;
+        }
+        @keyframes slideDown {
+            from { transform: translateY(-50px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+        body.dark .modal-content {
+            background-color: #2a2a2a;
+            color: #e4e6eb;
+        }
+        .modal-content h2 {
+            margin-bottom: 15px;
+            color: #667eea;
+        }
+        .modal-content p {
+            margin-bottom: 25px;
+            color: #666;
+        }
+        body.dark .modal-content p {
+            color: #999;
+        }
+        .modal-buttons {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+        }
+        .modal-buttons button {
+            padding: 12px 30px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 14px;
+        }
+        .btn-confirm {
+            background: #f44336;
+            color: white;
+        }
+        .btn-confirm:hover {
+            background: #d32f2f;
+        }
+        .btn-cancel {
+            background: #e0e0e0;
+            color: #333;
+        }
+        .btn-cancel:hover {
+            background: #bdbdbd;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎌 MangaHub Chat</h1>
+            <div class="online-count">👥 <span id="onlineCount">0</span> online</div>
+        </div>
+
+        <!-- Login Screen -->
+        <div id="login-screen">
+            <h2>Welcome to MangaHub Chat!</h2>
+            <p style="color: #666; margin: 10px 0;">Discuss your favorite manga with other readers</p>
+            <input type="text" id="usernameInput" placeholder="Enter your username" maxlength="20">
+            <button onclick="joinChat()">Join Chat</button>
+        </div>
+
+        <!-- Chat Screen -->
+        <div id="chat-screen">
+            <div id="messages"></div>
+            <div id="typing-indicator">
+                <span id="typing-user"></span> is typing...
+            </div>
+            <div class="input-area">
+                <input type="text" id="messageInput" placeholder="Type your message..." maxlength="200">
+                <button onclick="sendMessage()">Send</button>
+                <button class="leave-btn" onclick="showLeaveConfirmation()">Leave</button>
+            </div>
+        </div>
+
+        <div class="status" id="status">Enter your username to join</div>
+    </div>
+
+    <!-- Confirmation Modal -->
+    <div id="leaveModal" class="modal">
+        <div class="modal-content">
+            <h2>Leave Chat?</h2>
+            <p>Are you sure you want to leave the chat room?</p>
+            <div class="modal-buttons">
+                <button class="btn-confirm" onclick="confirmLeave()">Yes, Leave</button>
+                <button class="btn-cancel" onclick="cancelLeave()">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let ws;
+        let username;
+        let reconnectAttempts = 0;
+        let shouldReconnect = false;
+        let typingTimeout;
+
+        function joinChat() {
+            username = document.getElementById('usernameInput').value.trim();
+            
+            if (!username) {
+                alert('Please enter a username');
+                return;
+            }
+
+            shouldReconnect = true; // Enable reconnection
+            connectWebSocket();
+        }
+
+        function connectWebSocket() {
+            // Connect to WebSocket
+            ws = new WebSocket('ws://localhost:9093/ws?username=' + encodeURIComponent(username));
+
+            ws.onopen = function() {
+                console.log('WebSocket connected');
+                document.getElementById('login-screen').style.display = 'none';
+                document.getElementById('chat-screen').style.display = 'flex';
+                updateStatus('Connected', true);
+                updateOnlineCount();
+                reconnectAttempts = 0;
+            };
+
+            ws.onmessage = function(event) {
+                const msg = JSON.parse(event.data);
+                
+                if (msg.type === 'typing') {
+                    showTypingIndicator(msg.username);
+                } else {
+                    displayMessage(msg);
+                }
+            };
+
+            ws.onclose = function() {
+                console.log('WebSocket disconnected');
+                updateStatus('Disconnected', false);
+                
+                // Only attempt reconnect if shouldReconnect is true
+                if (shouldReconnect && reconnectAttempts < 5) {
+                    reconnectAttempts++;
+                    console.log('Attempting to reconnect... (' + reconnectAttempts + '/5)');
+                    setTimeout(connectWebSocket, 3000);
+                }
+            };
+
+            ws.onerror = function(error) {
+                console.error('WebSocket error:', error);
+                updateStatus('Connection error', false);
+            };
+        }
+
+        function sendMessage() {
+            const input = document.getElementById('messageInput');
+            const text = input.value.trim();
+
+            if (text && ws && ws.readyState === WebSocket.OPEN) {
+                const msg = { text: text };
+                ws.send(JSON.stringify(msg));
+                input.value = '';
+            }
+        }
+
+        function showLeaveConfirmation() {
+            document.getElementById('leaveModal').style.display = 'block';
+        }
+
+        function confirmLeave() {
+            shouldReconnect = false; // Disable reconnection
+            document.getElementById('leaveModal').style.display = 'none';
+            leaveChat();
+        }
+
+        function cancelLeave() {
+            document.getElementById('leaveModal').style.display = 'none';
+        }
+
+        function leaveChat() {
+            if (ws) {
+                ws.close();
+                ws = null;
+            }
+            document.getElementById('login-screen').style.display = 'flex';
+            document.getElementById('chat-screen').style.display = 'none';
+            document.getElementById('messages').innerHTML = '';
+            updateStatus('Enter your username to join', null);
+            reconnectAttempts = 0;
+        }
+
+        function displayMessage(msg) {
+            const messagesDiv = document.getElementById('messages');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'message ' + msg.type;
+
+            if (msg.type === 'chat') {
+                const userColor = getColorForUser(msg.username);
+                messageDiv.innerHTML = `
+                    <span class="time">${msg.time}</span>
+                    <div>
+                        <span class="username" style="color: ${userColor}">${escapeHtml(msg.username)}:</span>
+                        <span class="text">${escapeHtml(msg.text)}</span>
+                    </div>
+                `;
+            } else if (msg.type === 'system') {
+                messageDiv.innerHTML = `
+                    <span class="time">${msg.time}</span>
+                    <div>${escapeHtml(msg.text)}</div>
+                `;
+            }
+
+            messagesDiv.appendChild(messageDiv);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+
+            // Play sound for new messages (not from self)
+            if (msg.type === 'chat' && msg.username !== username) {
+                playNotificationSound();
+            }
+        }
+
+        function showTypingIndicator(user) {
+            if (user !== username) {
+                document.getElementById('typing-user').textContent = user;
+                document.getElementById('typing-indicator').style.display = 'block';
+                
+                clearTimeout(typingTimeout);
+                typingTimeout = setTimeout(() => {
+                    document.getElementById('typing-indicator').style.display = 'none';
+                }, 3000);
+            }
+        }
+
+        function getColorForUser(username) {
+            let hash = 0;
+            for (let i = 0; i < username.length; i++) {
+                hash = username.charCodeAt(i) + ((hash << 5) - hash);
+            }
+            const colors = ['#667eea', '#f093fb', '#4facfe', '#43e97b', '#fa709a', '#feca57', '#ff6b6b', '#4ecdc4'];
+            return colors[Math.abs(hash) % colors.length];
+        }
+
+        function playNotificationSound() {
+            const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            const oscillator = audioContext.createOscillator();
+            const gainNode = audioContext.createGain();
+            
+            oscillator.connect(gainNode);
+            gainNode.connect(audioContext.destination);
+            
+            oscillator.frequency.value = 800;
+            oscillator.type = 'sine';
+            
+            gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.1);
+            
+            oscillator.start(audioContext.currentTime);
+            oscillator.stop(audioContext.currentTime + 0.1);
+        }
+
+        function updateStatus(text, connected) {
+            const statusDiv = document.getElementById('status');
+            statusDiv.textContent = text;
+            statusDiv.className = 'status ' + (connected === true ? 'connected' : connected === false ? 'disconnected' : '');
+        }
+
+        function updateOnlineCount() {
+            fetch('http://localhost:9093/stats')
+                .then(res => res.json())
+                .then(data => {
+                    document.getElementById('onlineCount').textContent = data.online_users;
+                })
+                .catch(err => console.error('Failed to fetch stats:', err));
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Typing indicator on input
+        let sendTypingTimeout;
+        document.addEventListener('DOMContentLoaded', function() {
+            const messageInput = document.getElementById('messageInput');
+            if (messageInput) {
+                messageInput.addEventListener('input', function() {
+                    if (ws && ws.readyState === WebSocket.OPEN) {
+                        clearTimeout(sendTypingTimeout);
+                        sendTypingTimeout = setTimeout(() => {
+                            ws.send(JSON.stringify({ type: 'typing', username: username }));
+                        }, 300);
+                    }
+                });
+
+                messageInput.addEventListener('keypress', function(e) {
+                    if (e.key === 'Enter') {
+                        sendMessage();
+                    }
+                });
+            }
+
+            const usernameInput = document.getElementById('usernameInput');
+            if (usernameInput) {
+                usernameInput.addEventListener('keypress', function(e) {
+                    if (e.key === 'Enter') {
+                        joinChat();
+                    }
+                });
+            }
+        });
+
+        // Update online count every 5 seconds when connected
+        setInterval(function() {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                updateOnlineCount();
+            }
+        }, 5000);
+
+        // Close modal when clicking outside
+        window.onclick = function(event) {
+            const modal = document.getElementById('leaveModal');
+            if (event.target === modal) {
+                modal.style.display = 'none';
+            }
+        }
+    </script>
+</body>
+</html>
