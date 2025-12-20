@@ -59,12 +59,20 @@ func (c *Client) ReadPump() {
 			continue
 		}
 
-		// Set metadata
+		// Handle typing indicator — broadcast to all (but don't save to history)
+		if msg.Type == "typing" {
+			msg.Username = c.Username
+			msg.Time = time.Now().Format("15:04:05")
+			typingData, _ := json.Marshal(msg)
+			c.Hub.Broadcast <- typingData
+			continue
+		}
+
+		// Normal chat message
 		msg.Username = c.Username
 		msg.Type = "chat"
 		msg.Time = time.Now().Format("15:04:05")
 
-		// Broadcast to all clients
 		c.Hub.BroadcastMessage(msg)
 	}
 }

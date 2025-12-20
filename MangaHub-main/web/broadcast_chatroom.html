@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>MangaHub Chat</title>
+    <title>MangaHub Chat Room</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -11,6 +11,9 @@
             display: flex;
             justify-content: center;
             align-items: center;
+        }
+        body.dark-mode {
+            background: #18191a;
         }
         .container {
             background: white;
@@ -22,8 +25,8 @@
             display: flex;
             flex-direction: column;
         }
-        body.dark .container {
-            background: #1f1f1f;
+        body.dark-mode .container {
+            background: #242526;
         }
         .header {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -35,11 +38,28 @@
             align-items: center;
         }
         .header h1 { font-size: 24px; }
+        .header-right {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+        }
         .online-count {
             background: rgba(255,255,255,0.2);
             padding: 5px 15px;
             border-radius: 20px;
             font-size: 14px;
+        }
+        .dark-mode-toggle {
+            background: rgba(255,255,255,0.2);
+            border: none;
+            color: white;
+            padding: 8px 12px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 18px;
+        }
+        .dark-mode-toggle:hover {
+            background: rgba(255,255,255,0.3);
         }
         #login-screen {
             flex: 1;
@@ -49,6 +69,10 @@
             align-items: center;
             padding: 40px;
         }
+        body.dark-mode #login-screen h2,
+        body.dark-mode #login-screen p {
+            color: #e4e6eb;
+        }
         #login-screen input {
             width: 300px;
             padding: 15px;
@@ -56,6 +80,11 @@
             border: 2px solid #667eea;
             border-radius: 8px;
             font-size: 16px;
+        }
+        body.dark-mode #login-screen input {
+            background: #3a3b3c;
+            border-color: #667eea;
+            color: #e4e6eb;
         }
         #login-screen button {
             width: 300px;
@@ -81,133 +110,217 @@
             flex: 1;
             overflow-y: auto;
             padding: 20px;
-            background: #f8f9fa;
+            background: #f0f2f5;
         }
-        body.dark #messages {
-            background: #121212;
+        body.dark-mode #messages {
+            background: #18191a;
         }
-        .message {
-            margin: 10px 0;
-            padding: 12px;
-            border-radius: 8px;
+        
+        /* Message Container */
+        .message-wrapper {
+            margin: 8px 0;
+            display: flex;
+            align-items: flex-end;
             animation: slideIn 0.3s ease;
         }
         @keyframes slideIn {
             from { opacity: 0; transform: translateY(10px); }
             to { opacity: 1; transform: translateY(0); }
         }
-        .message.chat {
-            background: #e3f2fd;
-            border-left: 4px solid #667eea;
+        
+        /* Own messages - Right side */
+        .message-wrapper.own {
+            justify-content: flex-end;
         }
-        body.dark .message.chat {
-            background: #2a2a2a;
-            border-left: 4px solid #667eea;
-            color: #e4e6eb;
+        
+        /* Other messages - Left side */
+        .message-wrapper.other {
+            justify-content: flex-start;
         }
-        .message.system {
-            background: #fff3e0;
-            border-left: 4px solid #ff9800;
-            font-style: italic;
-            text-align: center;
-            color: #e65100;
-        }
-        body.dark .message.system {
-            background: #3d2a00;
-            border-left: 4px solid #ff9800;
-            color: #ffcc80;
-        }
-        .message .username {
-            font-weight: bold;
-            color: #667eea;
-            margin-right: 8px;
-            display: inline;
-        }
-        body.dark .message .username {
-            color: #8b9ef7;
-        }
-        .message .time {
-            color: #999;
-            font-size: 12px;
-            margin-left: 8px;
-            float: right;
-        }
-        body.dark .message .time {
-            color: #777;
-        }
-        .message .text {
-            display: inline;
+        
+        .message {
+            max-width: 60%;
+            padding: 10px 16px;
+            border-radius: 18px;
+            position: relative;
             word-wrap: break-word;
         }
-        #typing-indicator {
-            display: none;
-            padding: 10px 20px;
-            color: #666;
-            font-style: italic;
-            background: #f8f9fa;
-            font-size: 13px;
+        
+        /* Own message styling - Messenger blue */
+        .message-wrapper.own .message {
+            background: #0084ff;
+            color: white;
+            border-bottom-right-radius: 4px;
         }
-        body.dark #typing-indicator {
-            background: #1a1a1a;
-            color: #999;
+        
+        /* Other message styling - Gray */
+        .message-wrapper.other .message {
+            background: #e4e6eb;
+            color: #050505;
+            border-bottom-left-radius: 4px;
         }
-        .input-area {
-            display: flex;
-            padding: 20px;
-            background: white;
-            border-top: 1px solid #ddd;
-            border-radius: 0 0 15px 15px;
-        }
-        body.dark .input-area {
-            background: #1f1f1f;
-            border-top-color: #333;
-        }
-        .input-area input {
-            flex: 1;
-            padding: 12px;
-            border: 2px solid #ddd;
-            border-radius: 8px;
-            font-size: 14px;
-        }
-        .input-area input:focus {
-            outline: none;
-            border-color: #667eea;
-        }
-        body.dark .input-area input {
-            background: #2a2a2a;
-            border-color: #444;
+        body.dark-mode .message-wrapper.other .message {
+            background: #3a3b3c;
             color: #e4e6eb;
         }
-        .input-area button {
-            margin-left: 10px;
-            padding: 12px 25px;
-            background: #667eea;
-            color: white;
+        
+        .message .username {
+            font-size: 12px;
+            font-weight: 600;
+            margin-bottom: 4px;
+            display: block;
+        }
+        
+        .message-wrapper.own .message .username {
+            display: none;
+        }
+        
+        .message .text {
+            font-size: 15px;
+            line-height: 1.4;
+        }
+        
+        .message .time {
+            font-size: 11px;
+            opacity: 0.7;
+            margin-top: 4px;
+            display: block;
+        }
+        
+        /* System messages - Center */
+        .message-wrapper.system {
+            justify-content: center;
+            margin: 15px 0;
+        }
+        
+        .message-wrapper.system .message {
+            background: transparent;
+            color: #65676b;
+            font-size: 13px;
+            padding: 8px 12px;
+            border-radius: 12px;
+            text-align: center;
+            max-width: 80%;
+        }
+        body.dark-mode .message-wrapper.system .message {
+            color: #b0b3b8;
+        }
+        
+        /* Typing Indicator - FIXED AT BOTTOM */
+        #typing-indicator {
+            display: none;
+            padding: 15px 20px;
+            font-size: 14px;
+            color: #65676b;
+            font-style: italic;
+            background: #f0f2f5;
+            border-top: 1px solid #ddd;
+            text-align: left;
+            min-height: 40px;
+        }
+        body.dark-mode #typing-indicator {
+            background: #18191a;
+            color: #b0b3b8;
+            border-top-color: #333;
+        }
+        
+        .typing-dots {
+            display: inline-block;
+            margin-left: 5px;
+        }
+        .typing-dots span {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #90949c;
+            margin: 0 2px;
+            animation: typingDot 1.4s infinite ease-in-out;
+        }
+        body.dark-mode .typing-dots span {
+            background: #b0b3b8;
+        }
+        .typing-dots span:nth-child(1) { animation-delay: 0s; }
+        .typing-dots span:nth-child(2) { animation-delay: 0.2s; }
+        .typing-dots span:nth-child(3) { animation-delay: 0.4s; }
+        @keyframes typingDot {
+            0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+            30% { transform: translateY(-10px); opacity: 1; }
+        }
+        
+        .input-area {
+            display: flex;
+            gap: 10px;
+            padding: 15px 20px;
+            background: white;
+            border-top: 1px solid #e4e6eb;
+            border-radius: 0 0 15px 15px;
+        }
+        body.dark-mode .input-area {
+            background: #242526;
+            border-top-color: #3a3b3c;
+        }
+        
+        .input-area input {
+            flex: 1;
+            padding: 10px 15px;
             border: none;
-            border-radius: 8px;
+            border-radius: 20px;
+            background: #f0f2f5;
+            font-size: 15px;
+        }
+        .input-area input:focus {
+            outline: 2px solid #0084ff;
+        }
+        body.dark-mode .input-area input {
+            background: #3a3b3c;
+            color: #e4e6eb;
+        }
+        
+        .input-area button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 20px;
             cursor: pointer;
-            font-weight: bold;
+            font-weight: 600;
+            font-size: 14px;
+            transition: all 0.2s;
         }
-        .input-area button:hover {
-            background: #764ba2;
+        
+        .btn-send {
+            background: #0084ff;
+            color: white;
         }
-        .input-area button.leave-btn {
-            background: #f44336;
+        .btn-send:hover {
+            background: #0073e6;
         }
-        .input-area button.leave-btn:hover {
-            background: #d32f2f;
+        
+        .btn-leave {
+            background: #e4e6eb;
+            color: #050505;
         }
+        body.dark-mode .btn-leave {
+            background: #3a3b3c;
+            color: #e4e6eb;
+        }
+        .btn-leave:hover {
+            background: #d8dadf;
+        }
+        body.dark-mode .btn-leave:hover {
+            background: #4e4f50;
+        }
+        
         .status {
             text-align: center;
-            padding: 10px;
+            padding: 8px;
             font-size: 12px;
-            color: #666;
+            color: #65676b;
         }
-        body.dark .status {
-            color: #999;
+        body.dark-mode .status {
+            color: #b0b3b8;
         }
-        .status.connected { color: #4caf50; }
-        .status.disconnected { color: #f44336; }
+        .status.connected { color: #31a24c; }
+        .status.disconnected { color: #fa383e; }
 
         /* Confirmation Modal */
         .modal {
@@ -218,7 +331,7 @@
             top: 0;
             width: 100%;
             height: 100%;
-            background-color: rgba(0,0,0,0.5);
+            background-color: rgba(0,0,0,0.6);
             animation: fadeIn 0.2s;
         }
         @keyframes fadeIn {
@@ -240,8 +353,8 @@
             from { transform: translateY(-50px); opacity: 0; }
             to { transform: translateY(0); opacity: 1; }
         }
-        body.dark .modal-content {
-            background-color: #2a2a2a;
+        body.dark-mode .modal-content {
+            background-color: #242526;
             color: #e4e6eb;
         }
         .modal-content h2 {
@@ -250,10 +363,10 @@
         }
         .modal-content p {
             margin-bottom: 25px;
-            color: #666;
+            color: #65676b;
         }
-        body.dark .modal-content p {
-            color: #999;
+        body.dark-mode .modal-content p {
+            color: #b0b3b8;
         }
         .modal-buttons {
             display: flex;
@@ -269,18 +382,37 @@
             font-size: 14px;
         }
         .btn-confirm {
-            background: #f44336;
+            background: #fa383e;
             color: white;
         }
         .btn-confirm:hover {
             background: #d32f2f;
         }
         .btn-cancel {
-            background: #e0e0e0;
-            color: #333;
+            background: #e4e6eb;
+            color: #050505;
+        }
+        body.dark-mode .btn-cancel {
+            background: #3a3b3c;
+            color: #e4e6eb;
         }
         .btn-cancel:hover {
-            background: #bdbdbd;
+            background: #d8dadf;
+        }
+
+        /* Scrollbar */
+        #messages::-webkit-scrollbar {
+            width: 8px;
+        }
+        #messages::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        #messages::-webkit-scrollbar-thumb {
+            background: #bcc0c4;
+            border-radius: 4px;
+        }
+        body.dark-mode #messages::-webkit-scrollbar-thumb {
+            background: #4e4f50;
         }
     </style>
 </head>
@@ -288,7 +420,10 @@
     <div class="container">
         <div class="header">
             <h1>🎌 MangaHub Chat</h1>
-            <div class="online-count">👥 <span id="onlineCount">0</span> online</div>
+            <div class="header-right">
+                <button class="dark-mode-toggle" onclick="toggleDarkMode()" title="Toggle Dark Mode">🌙</button>
+                <div class="online-count">👥 <span id="onlineCount">0</span> online</div>
+            </div>
         </div>
 
         <!-- Login Screen -->
@@ -302,13 +437,14 @@
         <!-- Chat Screen -->
         <div id="chat-screen">
             <div id="messages"></div>
+            <!-- Typing Indicator - Fixed at bottom -->
             <div id="typing-indicator">
-                <span id="typing-user"></span> is typing...
+                <span id="typing-user"></span> is typing<span class="typing-dots"><span></span><span></span><span></span></span>
             </div>
             <div class="input-area">
-                <input type="text" id="messageInput" placeholder="Type your message..." maxlength="200">
-                <button onclick="sendMessage()">Send</button>
-                <button class="leave-btn" onclick="showLeaveConfirmation()">Leave</button>
+                <input type="text" id="messageInput" placeholder="Type a message..." maxlength="200">
+                <button class="btn-send" onclick="sendMessage()">Send</button>
+                <button class="btn-leave" onclick="showLeaveConfirmation()">Leave</button>
             </div>
         </div>
 
@@ -330,72 +466,124 @@
     <script>
         let ws;
         let username;
-        let reconnectAttempts = 0;
         let shouldReconnect = false;
         let typingTimeout;
+        let isTyping = false; // Track typing state
+
+        // Dark mode
+        function toggleDarkMode() {
+            document.body.classList.toggle('dark-mode');
+            localStorage.setItem('darkMode', document.body.classList.contains('dark-mode'));
+            const toggle = document.querySelector('.dark-mode-toggle');
+            toggle.textContent = document.body.classList.contains('dark-mode') ? '☀️' : '🌙';
+        }
+
+        if (localStorage.getItem('darkMode') === 'true') {
+            document.body.classList.add('dark-mode');
+            document.querySelector('.dark-mode-toggle').textContent = '☀️';
+        }
 
         function joinChat() {
             username = document.getElementById('usernameInput').value.trim();
-            
             if (!username) {
                 alert('Please enter a username');
                 return;
             }
 
-            shouldReconnect = true; // Enable reconnection
+            shouldReconnect = true;
             connectWebSocket();
         }
 
         function connectWebSocket() {
-            // Connect to WebSocket
             ws = new WebSocket('ws://localhost:9093/ws?username=' + encodeURIComponent(username));
 
             ws.onopen = function() {
-                console.log('WebSocket connected');
                 document.getElementById('login-screen').style.display = 'none';
                 document.getElementById('chat-screen').style.display = 'flex';
                 updateStatus('Connected', true);
                 updateOnlineCount();
-                reconnectAttempts = 0;
             };
 
             ws.onmessage = function(event) {
-                const msg = JSON.parse(event.data);
-                
-                if (msg.type === 'typing') {
-                    showTypingIndicator(msg.username);
-                } else {
-                    displayMessage(msg);
+                const data = event.data;
+                try {
+                    const msg = JSON.parse(data);
+                    if (msg.type === 'typing') {
+                        showTypingIndicator(msg.username);
+                    } else {
+                        displayMessage(msg);
+                    }
+                } catch (e) {
+                    console.log('Non-JSON message:', data);
                 }
             };
 
             ws.onclose = function() {
-                console.log('WebSocket disconnected');
                 updateStatus('Disconnected', false);
-                
-                // Only attempt reconnect if shouldReconnect is true
-                if (shouldReconnect && reconnectAttempts < 5) {
-                    reconnectAttempts++;
-                    console.log('Attempting to reconnect... (' + reconnectAttempts + '/5)');
+                document.getElementById('typing-indicator').style.display = 'none';
+                if (shouldReconnect) {
                     setTimeout(connectWebSocket, 3000);
                 }
-            };
-
-            ws.onerror = function(error) {
-                console.error('WebSocket error:', error);
-                updateStatus('Connection error', false);
             };
         }
 
         function sendMessage() {
             const input = document.getElementById('messageInput');
             const text = input.value.trim();
-
             if (text && ws && ws.readyState === WebSocket.OPEN) {
-                const msg = { text: text };
-                ws.send(JSON.stringify(msg));
+                ws.send(JSON.stringify({ text: text }));
                 input.value = '';
+                isTyping = false;
             }
+        }
+
+        function displayMessage(msg) {
+            const messagesDiv = document.getElementById('messages');
+            const wrapper = document.createElement('div');
+            const isOwn = msg.username === username;
+
+            if (msg.type === 'system') {
+                wrapper.className = 'message-wrapper system';
+                wrapper.innerHTML = `
+                    <div class="message">
+                        ${escapeHtml(msg.text)}
+                    </div>
+                `;
+            } else if (msg.type === 'chat') {
+                if (msg.text && msg.text.trim() !== '') {
+                    wrapper.className = 'message-wrapper ' + (isOwn ? 'own' : 'other');
+                    wrapper.innerHTML = `
+                        <div class="message">
+                            <span class="username" style="color: ${getColorForUser(msg.username)}">${escapeHtml(msg.username)}</span>
+                            <div class="text">${escapeHtml(msg.text)}</div>
+                            <span class="time">${msg.time}</span>
+                        </div>
+                    `;
+                }
+            }
+
+            messagesDiv.appendChild(wrapper);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+
+        function showTypingIndicator(user) {
+            if (user !== username) {
+                document.getElementById('typing-user').textContent = user;
+                document.getElementById('typing-indicator').style.display = 'block';
+                clearTimeout(typingTimeout);
+                typingTimeout = setTimeout(() => {
+                    document.getElementById('typing-indicator').style.display = 'none';
+                }, 7000); 
+            }
+        }
+
+        function getColorForUser(username) {
+            let hash = 0;
+            for (let i = 0; i < username.length; i++) {
+                hash = username.charCodeAt(i) + ((hash << 5) - hash);
+            }
+            const colors = ['#667eea', '#f093fb', '#4facfe', '#43e97b', '#fa709a', '#feca57', '#ff6b6b', '#4ecdc4'];
+            return colors[Math.abs(hash) % colors.length];
         }
 
         function showLeaveConfirmation() {
@@ -403,7 +591,7 @@
         }
 
         function confirmLeave() {
-            shouldReconnect = false; // Disable reconnection
+            shouldReconnect = false;
             document.getElementById('leaveModal').style.display = 'none';
             leaveChat();
         }
@@ -421,76 +609,6 @@
             document.getElementById('chat-screen').style.display = 'none';
             document.getElementById('messages').innerHTML = '';
             updateStatus('Enter your username to join', null);
-            reconnectAttempts = 0;
-        }
-
-        function displayMessage(msg) {
-            const messagesDiv = document.getElementById('messages');
-            const messageDiv = document.createElement('div');
-            messageDiv.className = 'message ' + msg.type;
-
-            if (msg.type === 'chat') {
-                const userColor = getColorForUser(msg.username);
-                messageDiv.innerHTML = `
-                    <span class="time">${msg.time}</span>
-                    <div>
-                        <span class="username" style="color: ${userColor}">${escapeHtml(msg.username)}:</span>
-                        <span class="text">${escapeHtml(msg.text)}</span>
-                    </div>
-                `;
-            } else if (msg.type === 'system') {
-                messageDiv.innerHTML = `
-                    <span class="time">${msg.time}</span>
-                    <div>${escapeHtml(msg.text)}</div>
-                `;
-            }
-
-            messagesDiv.appendChild(messageDiv);
-            messagesDiv.scrollTop = messagesDiv.scrollHeight;
-
-            // Play sound for new messages (not from self)
-            if (msg.type === 'chat' && msg.username !== username) {
-                playNotificationSound();
-            }
-        }
-
-        function showTypingIndicator(user) {
-            if (user !== username) {
-                document.getElementById('typing-user').textContent = user;
-                document.getElementById('typing-indicator').style.display = 'block';
-                
-                clearTimeout(typingTimeout);
-                typingTimeout = setTimeout(() => {
-                    document.getElementById('typing-indicator').style.display = 'none';
-                }, 3000);
-            }
-        }
-
-        function getColorForUser(username) {
-            let hash = 0;
-            for (let i = 0; i < username.length; i++) {
-                hash = username.charCodeAt(i) + ((hash << 5) - hash);
-            }
-            const colors = ['#667eea', '#f093fb', '#4facfe', '#43e97b', '#fa709a', '#feca57', '#ff6b6b', '#4ecdc4'];
-            return colors[Math.abs(hash) % colors.length];
-        }
-
-        function playNotificationSound() {
-            const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-            const oscillator = audioContext.createOscillator();
-            const gainNode = audioContext.createGain();
-            
-            oscillator.connect(gainNode);
-            gainNode.connect(audioContext.destination);
-            
-            oscillator.frequency.value = 800;
-            oscillator.type = 'sine';
-            
-            gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
-            gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.1);
-            
-            oscillator.start(audioContext.currentTime);
-            oscillator.stop(audioContext.currentTime + 0.1);
         }
 
         function updateStatus(text, connected) {
@@ -505,7 +623,7 @@
                 .then(data => {
                     document.getElementById('onlineCount').textContent = data.online_users;
                 })
-                .catch(err => console.error('Failed to fetch stats:', err));
+                .catch(() => {});
         }
 
         function escapeHtml(text) {
@@ -514,23 +632,21 @@
             return div.innerHTML;
         }
 
-        // Typing indicator on input
-        let sendTypingTimeout;
+        // Typing indicator - immediate, one per session, 10s timeout
         document.addEventListener('DOMContentLoaded', function() {
             const messageInput = document.getElementById('messageInput');
             if (messageInput) {
                 messageInput.addEventListener('input', function() {
-                    if (ws && ws.readyState === WebSocket.OPEN) {
-                        clearTimeout(sendTypingTimeout);
-                        sendTypingTimeout = setTimeout(() => {
-                            ws.send(JSON.stringify({ type: 'typing', username: username }));
-                        }, 300);
+                    if (ws && ws.readyState === WebSocket.OPEN && this.value.trim() !== '' && !isTyping) {
+                        ws.send(JSON.stringify({ type: 'typing', username: username }));
+                        isTyping = true;
                     }
                 });
 
                 messageInput.addEventListener('keypress', function(e) {
                     if (e.key === 'Enter') {
                         sendMessage();
+                        isTyping = false;
                     }
                 });
             }
@@ -543,16 +659,10 @@
                     }
                 });
             }
+
+            setInterval(updateOnlineCount, 5000);
         });
 
-        // Update online count every 5 seconds when connected
-        setInterval(function() {
-            if (ws && ws.readyState === WebSocket.OPEN) {
-                updateOnlineCount();
-            }
-        }, 5000);
-
-        // Close modal when clicking outside
         window.onclick = function(event) {
             const modal = document.getElementById('leaveModal');
             if (event.target === modal) {

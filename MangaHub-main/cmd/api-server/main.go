@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"database/sql"
 	"encoding/json"
 	"log"
 	"net/http"
@@ -10,12 +11,12 @@ import (
 
 	"mangahub/internal/auth"
 	"mangahub/internal/database"
-	"mangahub/pkg/models"
 	"mangahub/internal/shared"
+	"mangahub/pkg/models"
 
-	"github.com/google/uuid"
-	"github.com/gin-gonic/gin"
 	"github.com/gin-contrib/cors"
+	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 )
 
 const tcpServerURL = "http://localhost:9091/internal/progress"
