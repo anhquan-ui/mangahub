@@ -3,6 +3,7 @@ package udp
 import (
 	"log"
 	"net"
+	"strings"
 	"time"
 )
 
@@ -33,14 +34,20 @@ func readPump() {
 			continue
 		}
 
-		message := string(buffer[:n])
-		if message == "PING\n" || message == "PING" {
+		message := strings.TrimSpace(string(buffer[:n]))
+		addrStr := clientAddr.String()
+
+		if message == "PING" {
+			log.Printf("UDP PING RECEIVED from %s → Sending PONG", addrStr)
+
 			client := &ClientAddr{
 				Addr:     clientAddr,
 				LastSeen: time.Now(),
 			}
 			GlobalHub.Register <- client
+
 			udpConn.WriteToUDP([]byte("PONG\n"), clientAddr)
+			log.Printf("UDP CLIENT SUBSCRIBED: %s — Total subscribers: %d", addrStr, GlobalHub.GetClientCount())
 		}
 	}
 }

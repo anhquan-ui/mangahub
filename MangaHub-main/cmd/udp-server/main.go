@@ -33,12 +33,19 @@ func receiveProgress(c *gin.Context) {
 		return
 	}
 
+	log.Printf("BROADCAST NOTIFICATION RECEIVED → Sending to UDP subscribers")
+	log.Printf("   User: %s (ID: %s)", update.Username, update.UserID)
+	log.Printf("   Manga: %s → Chapter %d (%s)", update.MangaTitle, update.CurrentChapter, update.Status)
+
 	udp.GlobalHub.BroadcastProgress(models.UserProgress{
 		UserID:         update.UserID,
 		MangaID:        update.MangaID,
 		CurrentChapter: update.CurrentChapter,
 		Status:         update.Status,
 	}, update.Username, update.MangaTitle)
+
+	clientCount := udp.GlobalHub.GetClientCount()
+	log.Printf("BROADCAST SENT TO %d UDP SUBSCRIBER(S)", clientCount)
 
 	c.JSON(http.StatusOK, gin.H{"status": "broadcasted"})
 }
