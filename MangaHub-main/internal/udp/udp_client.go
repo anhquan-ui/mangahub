@@ -6,52 +6,50 @@ import (
 	"time"
 )
 
-var udpConn *net.UDPConn
-
-func StartUDPListener(addr string) {
-	udpAddr, err := net.ResolveUDPAddr("udp", addr)
+func main() {
+	// Connect to server
+	serverAddr, err := net.ResolveUDPAddr("udp", "localhost:9092")
 	if err != nil {
-		log.Fatal("UDP resolve error:", err)
+		log.Fatal("Resolve error:", err)
 	}
 
-	udpConn, err = net.ListenUDP("udp", udpAddr)
+	conn, err := net.DialUDP("udp", nil, serverAddr)
 	if err != nil {
-		log.Fatal("UDP listen error:", err)
+		log.Fatal("Dial error:", err)
 	}
-	log.Printf("UDP notification server running on %s", addr)
+	defer conn.Close()
 
-	go readPump()
-	go writePump()
-}
+	// Periodically send PING to stay subscribed
+	go func() {
+		for {
+			_, err := conn.Write([]byte("PING\n"))
+			if err != nil {
+				log.Println("Failed to send PING:", err)
+				return
+			}
+			log.Println("Sent PING to server")
+			time.Sleep(20 * time.Second)
+		}
+	}()
 
-func readPump() {
-	buffer := make([]byte, 4096)
+	log.Println("UDP client started. Waiting for notifications from server...")
+
+	// Buffer for incoming notifications
+	buffer := make([]byte, 2048)
+
 	for {
-		n, clientAddr, err := udpConn.ReadFromUDP(buffer)
+		// Correct way to read from UDP: use ReadFromUDP
+		n, server, err := conn.ReadFromUDP(buffer)
 		if err != nil {
-			log.Println("UDP read error:", err)
+			log.Println("Read error:", err)
 			continue
 		}
 
 		message := string(buffer[:n])
-		if message == "PING\n" || message == "PING" {
-			client := &ClientAddr{
-				Addr:     clientAddr,
-				LastSeen: time.Now(),
-			}
-			GlobalHub.Register <- client
-			udpConn.WriteToUDP([]byte("PONG\n"), clientAddr)
+		if message == "PONG\n" {
+			log.Println("Received PONG from server")
+		} else {
+			log.Printf("Notification from %s: %s", server, message)
 		}
-	}
-}
-
-func writePump() {
-	for message := range GlobalHub.broadcast {
-		GlobalHub.mu.RLock()
-		for _, client := range GlobalHub.clients {
-			udpConn.WriteToUDP(message, client.Addr)
-			client.LastSeen = time.Now()
-		}
-		GlobalHub.mu.RUnlock()
 	}
 }
