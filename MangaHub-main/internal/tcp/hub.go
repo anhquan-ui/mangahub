@@ -3,12 +3,12 @@ package tcp
 import (
 	"encoding/json"
 	"log"
+	"net"
 	"sync"
 	"time"
-	"net"
 
-	"mangahub/pkg/models"
 	"mangahub/internal/shared"
+	"mangahub/pkg/models"
 )
 
 type Client struct {
@@ -39,16 +39,17 @@ func (h *Hub) Run() {
 			h.mu.Lock()
 			h.clients[client] = true
 			h.mu.Unlock()
-			log.Printf("Client connected: %s (UserID: %s)", client.Conn.RemoteAddr(), client.UserID)
+			log.Printf("TCP CLIENT REGISTERED IN HUB: UserID %s from %s", client.UserID, client.Conn.RemoteAddr())
 
 		case client := <-h.Unregister:
 			h.mu.Lock()
 			if _, ok := h.clients[client]; ok {
 				delete(h.clients, client)
 				close(client.Send)
+				log.Printf("TCP CLIENT DISCONNECTED: UserID %s from %s — Remaining clients: %d",
+					client.UserID, client.Conn.RemoteAddr(), len(h.clients))
 			}
 			h.mu.Unlock()
-			log.Printf("Client disconnected: %s", client.Conn.RemoteAddr())
 
 		case message := <-h.broadcast:
 			h.mu.RLock()
@@ -83,4 +84,10 @@ func (h *Hub) BroadcastProgress(update models.UserProgress, username, mangaTitle
 	}
 
 	h.broadcast <- data
+}
+
+func (h *Hub) GetClientCount() int {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	return len(h.clients)
 }

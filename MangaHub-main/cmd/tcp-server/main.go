@@ -4,9 +4,9 @@ import (
 	"bufio"
 	"fmt"
 	"log"
-	"net/http"
 	"net"
-	
+	"net/http"
+
 	"mangahub/internal/shared"
 	"mangahub/internal/tcp"
 	"mangahub/pkg/models"
@@ -41,7 +41,7 @@ func startTCPListener() {
 	for {
 		conn, err := listener.Accept()
 		if err != nil {
-			log.Println("Error accepting:", err)
+			log.Println("Error accepting connection:", err)
 			continue
 		}
 		go handleTCPConnection(conn)
@@ -51,13 +51,19 @@ func startTCPListener() {
 func handleTCPConnection(conn net.Conn) {
 	defer conn.Close()
 
+	remoteAddr := conn.RemoteAddr().String()
+	log.Printf("TCP CLIENT CONNECTED: %s", remoteAddr)
+
 	fmt.Fprintf(conn, "Welcome to MangaHub Progress Sync!\nEnter your UserID: ")
 
 	scanner := bufio.NewScanner(conn)
 	if !scanner.Scan() {
+		log.Printf("TCP CLIENT DISCONNECTED (no UserID sent): %s", remoteAddr)
 		return
 	}
+
 	userID := scanner.Text()
+	log.Printf("TCP CLIENT AUTHENTICATED: %s → UserID: %s", remoteAddr, userID)
 
 	client := &tcp.Client{
 		Conn:   conn,
@@ -67,8 +73,11 @@ func handleTCPConnection(conn net.Conn) {
 
 	tcp.GlobalHub.Register <- client
 
+	log.Printf("TCP CLIENT REGISTERED: %s (UserID: %s) — Total clients: %d",
+		remoteAddr, userID, tcp.GlobalHub.GetClientCount())
+
 	go client.WritePump()
-	client.ReadPump()
+	client.ReadPump() // Will trigger unregister on disconnect
 }
 
 func receiveProgress(c *gin.Context) {
@@ -78,12 +87,20 @@ func receiveProgress(c *gin.Context) {
 		return
 	}
 
+	log.Printf("PROGRESS UPDATE RECEIVED → Broadcasting to TCP clients")
+	log.Printf("   User: %s (ID: %s)", update.Username, update.UserID)
+	log.Printf("   Manga: %s", update.MangaTitle)
+	log.Printf("   Chapter: %d | Status: %s", update.CurrentChapter, update.Status)
+
 	tcp.GlobalHub.BroadcastProgress(models.UserProgress{
 		UserID:         update.UserID,
 		MangaID:        update.MangaID,
 		CurrentChapter: update.CurrentChapter,
 		Status:         update.Status,
 	}, update.Username, update.MangaTitle)
+
+	clientCount := tcp.GlobalHub.GetClientCount()
+	log.Printf("STREAMED UPDATE TO %d TCP CLIENT(S)", clientCount)
 
 	c.JSON(http.StatusOK, gin.H{"status": "broadcasted"})
 }
