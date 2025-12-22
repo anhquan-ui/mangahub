@@ -2,77 +2,135 @@ package websocket
 
 import (
 	"encoding/json"
-	"log"
 	"sync"
+	"time"
+
+	"github.com/gorilla/websocket" 
 )
 
-// Message represents a chat message
+// Message represents a chat or system message sent over WebSocket
 type Message struct {
-	Type     string `json:"type"`     // "join", "leave", "chat", "typing"
-	Username string `json:"username"`
-	Text     string `json:"text"`
-	Time     string `json:"time"`
+	Type     string `json:"type"`              // Message type: chat, system, etc.
+	Username string `json:"username"`          // Sender username
+	Text     string `json:"text"`              // Message content
+	Time     string `json:"time"`              // Display time (HH:MM)
+	Room     string `json:"room,omitempty"`    // Chat room (optional in JSON)
 }
 
-// Hub maintains the set of active clients and broadcasts messages
+// Client represents a single WebSocket connection
+type Client struct {
+	Hub      *Hub              // Reference to the central hub
+	Conn     *websocket.Conn   // WebSocket connection
+	Send     chan []byte       // Outgoing message channel
+	Username string            // Client username
+	Room     string            // Room the client joined
+}
+
+// Hub manages all WebSocket clients and rooms
 type Hub struct {
-	// Registered clients
-	clients map[*Client]bool
+	clients    map[*Client]bool              // All connected clients
+	rooms      map[string]map[*Client]bool   // Room → clients mapping
+	Broadcast  chan []byte                   // Messages to broadcast
+	Register   chan *Client                  // New client registration
+	Unregister chan *Client                  // Client disconnection
+	mu         sync.RWMutex                  // Protects clients & rooms
 
-	// Inbound messages from clients
-	Broadcast chan []byte
-
-	// Register requests from clients
-	Register chan *Client
-
-	// Unregister requests from clients
-	Unregister chan *Client
-
-	// Message history (last 50 messages)
-	messageHistory []Message
-
-	// Mutex for thread-safe operations
-	mu sync.RWMutex
+	messageHistory []Message                 // Last 50 messages (all rooms)
+	historyMu      sync.RWMutex              // Protects message history
 }
 
-// NewHub creates a new Hub
+// Creates and initializes a new Hub instance
 func NewHub() *Hub {
 	return &Hub{
-		clients:        make(map[*Client]bool),
-		Broadcast:      make(chan []byte),
-		Register:       make(chan *Client),
-		Unregister:     make(chan *Client),
-		messageHistory: make([]Message, 0, 50),
+		clients:    make(map[*Client]bool),          // Initialize client map
+		rooms:      make(map[string]map[*Client]bool), // Initialize rooms
+		Broadcast:  make(chan []byte, 256),           // Buffered broadcast channel
+		Register:   make(chan *Client),               // Register channel
+		Unregister: make(chan *Client),               // Unregister channel
+		messageHistory: make([]Message, 0, 50),       // Pre-allocate history
 	}
 }
 
-// Run starts the hub's main loop
+// Main event loop of the Hub
 func (h *Hub) Run() {
 	for {
 		select {
+
+		// Handle new client connection
 		case client := <-h.Register:
 			h.mu.Lock()
 			h.clients[client] = true
-			h.mu.Unlock()
-			log.Printf("Client registered: %s (Total: %d)", client.Username, len(h.clients))
 
+			// Create room if it doesn't exist
+			if h.rooms[client.Room] == nil {
+				h.rooms[client.Room] = make(map[*Client]bool)
+			}
+
+			// Add client to room
+			h.rooms[client.Room][client] = true
+			h.mu.Unlock()
+
+		// Handle client disconnection
 		case client := <-h.Unregister:
 			h.mu.Lock()
 			if _, ok := h.clients[client]; ok {
 				delete(h.clients, client)
 				close(client.Send)
-				log.Printf("Client unregistered: %s (Total: %d)", client.Username, len(h.clients))
+
+				// Remove client from its room
+				if roomClients, exists := h.rooms[client.Room]; exists {
+					delete(roomClients, client)
+					if len(roomClients) == 0 {
+						delete(h.rooms, client.Room)
+					}
+				}
 			}
 			h.mu.Unlock()
 
-		case message := <-h.Broadcast:
+			// Broadcast system "leave" message
+			leaveMsg := Message{
+				Type: "system",
+				Text: client.Username + " left the room",
+				Time: time.Now().Format("15:04"),
+				Room: client.Room,
+			}
+			data, _ := json.Marshal(leaveMsg)
+			h.Broadcast <- data
+
+		// Handle incoming broadcast messages
+		case data := <-h.Broadcast:
+			var msg Message
+
+			// Decode message to inspect its content
+			if err := json.Unmarshal(data, &msg); err != nil {
+				continue
+			}
+
+			// Save chat & system messages to history
+			if msg.Type == "chat" || msg.Type == "system" {
+				h.historyMu.Lock()
+				h.messageHistory = append(h.messageHistory, msg)
+
+				// Keep only last 50 messages
+				if len(h.messageHistory) > 50 {
+					h.messageHistory = h.messageHistory[1:]
+				}
+				h.historyMu.Unlock()
+			}
+
+			// Send message to clients in the same room
 			h.mu.RLock()
-			for client := range h.clients {
-				select {
-				case client.Send <- message:
-				default:
-					close(client.Send)
-					delete(h.clients, client)
+			if roomClients, exists := h.rooms[msg.Room]; exists {
+				for client := range roomClients {
+					select {
+					case client.Send <- data:
+						// Message sent successfully
+					default:
+						// Client send buffer full → disconnect
+						close(client.Send)
+						delete(h.clients, client)
+						delete(roomClients, client)
+					}
 				}
 			}
 			h.mu.RUnlock()
@@ -80,37 +138,21 @@ func (h *Hub) Run() {
 	}
 }
 
-// BroadcastMessage sends a message to all connected clients
-func (h *Hub) BroadcastMessage(msg Message) {
-	// Add to history only if it's chat or system message (not typing)
-	if msg.Type == "chat" || msg.Type == "system" {
-		h.mu.Lock()
-		h.messageHistory = append(h.messageHistory, msg)
-		// Keep only last 50 messages
-		if len(h.messageHistory) > 50 {
-			h.messageHistory = h.messageHistory[1:]
+// Returns message history for a specific room
+func (h *Hub) GetMessageHistory(room string) []Message {
+	h.historyMu.RLock()
+	defer h.historyMu.RUnlock()
+
+	var history []Message
+	for _, msg := range h.messageHistory {
+		if msg.Room == room {
+			history = append(history, msg)
 		}
-		h.mu.Unlock()
 	}
-
-	data, err := json.Marshal(msg)
-	if err != nil {
-		log.Printf("Error marshaling message: %v", err)
-		return
-	}
-	h.Broadcast <- data
-}
-
-// GetMessageHistory returns the message history
-func (h *Hub) GetMessageHistory() []Message {
-	h.mu.RLock()
-	defer h.mu.RUnlock()
-	history := make([]Message, len(h.messageHistory))
-	copy(history, h.messageHistory)
 	return history
 }
 
-// GetClientCount returns the number of connected clients
+// Returns total number of connected WebSocket clients
 func (h *Hub) GetClientCount() int {
 	h.mu.RLock()
 	defer h.mu.RUnlock()

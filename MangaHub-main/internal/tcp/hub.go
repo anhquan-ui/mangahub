@@ -38,8 +38,9 @@ func (h *Hub) Run() {
 		case client := <-h.Register:
 			h.mu.Lock()
 			h.clients[client] = true
+			count := len(h.clients)
 			h.mu.Unlock()
-			log.Printf("TCP CLIENT REGISTERED IN HUB: UserID %s from %s", client.UserID, client.Conn.RemoteAddr())
+			log.Printf("TCP CLIENT REGISTERED IN HUB: UserID %s from %s — Total clients: %d", client.UserID, client.Conn.RemoteAddr().String(), count)
 
 		case client := <-h.Unregister:
 			h.mu.Lock()
@@ -66,6 +67,12 @@ func (h *Hub) Run() {
 	}
 }
 
+// BroadcastProgress sends a reading progress update to all connected TCP clients.
+// Parameters:
+//   update      - the user's progress data (chapter, status)
+//   username    - display name of the user
+//   mangaTitle  - title of the manga being read
+// This is used when a user updates their reading progress via the API.
 func (h *Hub) BroadcastProgress(update models.UserProgress, username, mangaTitle string) {
 	msg := shared.ProgressUpdate{
 		UserID:         update.UserID,

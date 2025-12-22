@@ -16,10 +16,26 @@ import (
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
+
+	_ "mangahub/docs"
+
+	swaggerFiles "github.com/swaggo/files"
+	ginSwagger "github.com/swaggo/gin-swagger"
 )
 
 const tcpServerURL = "http://localhost:9091/internal/progress"
-const udpServerURL = "http://localhost:9095/internal/progress"
+
+// Request types for Swagger
+type AddToLibraryRequest struct {
+	MangaID string `json:"manga_id" binding:"required"`
+	Status  string `json:"status" binding:"oneof=reading completed plan_to_read"`
+}
+
+type UpdateProgressRequest struct {
+	MangaID        string `json:"manga_id" binding:"required"`
+	CurrentChapter int    `json:"current_chapter" binding:"gte=0"`
+	Status         string `json:"status" binding:"omitempty,oneof=reading completed plan_to_read"`
+}
 
 func main() {
 	if err := database.Initialize("./data/mangahub.db"); err != nil {
@@ -32,6 +48,9 @@ func main() {
 	}
 
 	router := gin.Default()
+
+	// Swagger endpoint
+	router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
 	router.Use(cors.New(cors.Config{
 		AllowOrigins:     []string{"http://127.0.0.1:5500", "http://localhost:5500", "http://localhost:8080"},
@@ -64,10 +83,21 @@ func main() {
 	}
 
 	log.Println("API Server starting on http://localhost:8080")
-	log.Println("Make sure TCP server is running on :9091 and UDP server on :9095")
+	log.Println("Swagger docs: http://localhost:8080/swagger/index.html")
 	router.Run(":8080")
 }
 
+// Register new user
+// @Summary      Register a new user
+// @Description  Create a new user account
+// @Tags         Auth
+// @Accept       json
+// @Produce      json
+// @Param        request body models.RegisterRequest true "User registration details"
+// @Success      200 {object} models.LoginResponse "User created and JWT token returned"
+// @Failure      400 {object} map[string]string "Invalid request"
+// @Failure      500 {object} map[string]string "Server error"
+// @Router       /auth/register [post]
 func registerHandler(c *gin.Context) {
 	var req models.RegisterRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -99,6 +129,18 @@ func registerHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, models.LoginResponse{Token: token, Username: req.Username, UserID: userID})
 }
 
+// Login user
+// @Summary      Login user
+// @Description  Authenticate user and return JWT token
+// @Tags         Auth
+// @Accept       json
+// @Produce      json
+// @Param        request body models.LoginRequest true "Login credentials"
+// @Success      200 {object} models.LoginResponse "JWT token returned"
+// @Failure      400 {object} map[string]string "Invalid request"
+// @Failure      401 {object} map[string]string "Invalid credentials"
+// @Failure      500 {object} map[string]string "Server error"
+// @Router       /auth/login [post]
 func loginHandler(c *gin.Context) {
 	var req models.LoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -131,6 +173,17 @@ func loginHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, models.LoginResponse{Token: token, Username: user.Username, UserID: user.ID})
 }
 
+// Get manga detail
+// @Summary      Get manga by ID
+// @Description  Retrieve detailed information about a specific manga
+// @Tags         Manga
+// @Produce      json
+// @Param        id path string true "Manga ID"
+// @Param        Authorization header string true "Bearer {token}"
+// @Success      200 {object} models.Manga
+// @Failure      404 {object} map[string]string "Manga not found"
+// @Failure      500 {object} map[string]string "Server error"
+// @Router       /manga/{id} [get]
 func getMangaDetailHandler(c *gin.Context) {
 	id := c.Param("id")
 	var m models.Manga
@@ -148,8 +201,18 @@ func getMangaDetailHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, m)
 }
 
+// Search or list manga
+// @Summary      Search or list all manga
+// @Description  Search manga by title (?search= or ?title=) or return all if no query
+// @Tags         Manga
+// @Produce      json
+// @Param        search query string false "Search term (title)"
+// @Param        title  query string false "Alternative search term"
+// @Param        Authorization header string true "Bearer {token}"
+// @Success      200 {object} map[string]any "List of manga with count"
+// @Failure      500 {object} map[string]string "Server error"
+// @Router       /manga [get]
 func getMangaHandler(c *gin.Context) {
-	// Support both ?search= and ?title= (common in different HTML versions)
 	query := c.Query("search")
 	if query == "" {
 		query = c.Query("title")
@@ -160,7 +223,6 @@ func getMangaHandler(c *gin.Context) {
 	var err error
 
 	if query != "" {
-		// Case-insensitive partial match on title
 		searchTerm := "%" + query + "%"
 		rows, err = database.DB.Query(`
 			SELECT id, title, author, genres, status, total_chapters, description 
@@ -168,14 +230,12 @@ func getMangaHandler(c *gin.Context) {
 			WHERE LOWER(title) LIKE LOWER(?)
 			ORDER BY title
 		`, searchTerm)
-		log.Printf("Searching manga with query: '%s' (using term: '%s')", query, searchTerm)
 	} else {
 		rows, err = database.DB.Query(`
 			SELECT id, title, author, genres, status, total_chapters, description 
 			FROM manga 
 			ORDER BY title
 		`)
-		log.Println("Fetching all manga (no search query)")
 	}
 
 	if err != nil {
@@ -190,20 +250,30 @@ func getMangaHandler(c *gin.Context) {
 		err := rows.Scan(&m.ID, &m.Title, &m.Author, &m.GenresString, &m.Status, &m.TotalChapters, &m.Description)
 		if err != nil {
 			log.Printf("Scan error: %v", err)
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Scan error"})
-			return
+			continue
 		}
 		m.PostScan()
 		mangaList = append(mangaList, m)
 	}
 
-	log.Printf("Returning %d manga result(s) for query '%s'", len(mangaList), query)
 	c.JSON(http.StatusOK, gin.H{
 		"manga": mangaList,
 		"count": len(mangaList),
 	})
 }
 
+// Create new manga (admin only in real app)
+// @Summary      Create new manga
+// @Description  Add a new manga to the catalog
+// @Tags         Manga
+// @Accept       json
+// @Produce      json
+// @Param        manga body models.Manga true "Manga data"
+// @Param        Authorization header string true "Bearer {token}"
+// @Success      201 {object} models.Manga
+// @Failure      400 {object} map[string]string "Invalid input"
+// @Failure      500 {object} map[string]string "Server error"
+// @Router       /manga [post]
 func createMangaHandler(c *gin.Context) {
 	var m models.Manga
 	if err := c.ShouldBindJSON(&m); err != nil {
@@ -226,19 +296,28 @@ func createMangaHandler(c *gin.Context) {
 	c.JSON(http.StatusCreated, m)
 }
 
+// Add manga to user library
+// @Summary      Add manga to library
+// @Description  Add a manga to the authenticated user's library with optional status
+// @Tags         Library
+// @Accept       json
+// @Produce      json
+// @Param        Authorization header string true "Bearer {token}"
+// @Param        request body AddToLibraryRequest true "Manga ID and optional status"
+// @Success      200 {object} map[string]string "Added to library"
+// @Failure      400 {object} map[string]string "Invalid input"
+// @Failure      404 {object} map[string]string "Manga not found"
+// @Failure      500 {object} map[string]string "Server error"
+// @Router       /users/library [post]
 func addToLibraryHandler(c *gin.Context) {
 	userID := c.GetString("user_id")
 
-	var req struct {
-		MangaID string `json:"manga_id" binding:"required"`
-		Status  string `json:"status" binding:"oneof=reading completed plan_to_read """`
-	}
+	var req AddToLibraryRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	// Check manga exists
 	var exists int
 	err := database.DB.QueryRow("SELECT COUNT(*) FROM manga WHERE id = ?", req.MangaID).Scan(&exists)
 	if err != nil || exists == 0 {
@@ -246,10 +325,8 @@ func addToLibraryHandler(c *gin.Context) {
 		return
 	}
 
-	var status string
-	if req.Status != "" {
-		status = req.Status
-	} else {
+	status := req.Status
+	if status == "" {
 		status = "reading"
 	}
 
@@ -266,6 +343,15 @@ func addToLibraryHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Added to library"})
 }
 
+// Get user library
+// @Summary      Get user library
+// @Description  Retrieve all manga in the authenticated user's library
+// @Tags         Library
+// @Produce      json
+// @Param        Authorization header string true "Bearer {token}"
+// @Success      200 {object} map[string]any "Library with count"
+// @Failure      500 {object} map[string]string "Server error"
+// @Router       /users/library [get]
 func getLibraryHandler(c *gin.Context) {
 	userID := c.GetString("user_id")
 
@@ -281,46 +367,41 @@ func getLibraryHandler(c *gin.Context) {
 	}
 	defer rows.Close()
 
-	var library []struct {
+	type item struct {
 		MangaID        string `json:"manga_id"`
 		Title          string `json:"title"`
 		CurrentChapter int    `json:"current_chapter"`
 		Status         string `json:"status"`
 	}
+	var library []item
 	for rows.Next() {
-		var item struct {
-			MangaID        string `json:"manga_id"`
-			Title          string `json:"title"`
-			CurrentChapter int    `json:"current_chapter"`
-			Status         string `json:"status"`
-		}
-		rows.Scan(&item.MangaID, &item.Title, &item.CurrentChapter, &item.Status)
-		library = append(library, item)
+		var i item
+		rows.Scan(&i.MangaID, &i.Title, &i.CurrentChapter, &i.Status)
+		library = append(library, i)
 	}
 	c.JSON(http.StatusOK, gin.H{"library": library, "count": len(library)})
 }
 
+// Update reading progress
+// @Summary      Update reading progress
+// @Description  Update current chapter and optional status. Triggers broadcast to TCP.
+// @Tags         Progress
+// @Accept       json
+// @Produce      json
+// @Param        Authorization header string true "Bearer {token}"
+// @Param        request body UpdateProgressRequest true "Progress update data"
+// @Success      200 {object} map[string]string "Progress updated and broadcasted"
+// @Failure      400 {object} map[string]string "Invalid input"
+// @Failure      500 {object} map[string]string "Server error"
+// @Router       /users/progress [put]
 func updateProgressHandler(c *gin.Context) {
 	userID := c.GetString("user_id")
 	username := c.GetString("username")
 
-	var req struct {
-		MangaID        string `json:"manga_id" binding:"required"`
-		CurrentChapter int    `json:"current_chapter" binding:"gte=0"`
-		Status         string `json:"status" binding:"omitempty,oneof=reading completed plan_to_read"`
-	}
+	var req UpdateProgressRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		log.Printf("Bad progress update request: %v", err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
-	}
-
-	log.Printf("PROGRESS UPDATE REQUEST RECEIVED")
-	log.Printf("   UserID: %s (%s)", userID, username)
-	log.Printf("   MangaID: %s", req.MangaID)
-	log.Printf("   New Chapter: %d", req.CurrentChapter)
-	if req.Status != "" {
-		log.Printf("   New Status: %s", req.Status)
 	}
 
 	_, err := database.DB.Exec(`
@@ -329,7 +410,6 @@ func updateProgressHandler(c *gin.Context) {
 		WHERE user_id = ? AND manga_id = ?
 	`, req.CurrentChapter, userID, req.MangaID)
 	if err != nil {
-		log.Printf("Database error updating chapter: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update progress"})
 		return
 	}
@@ -339,25 +419,19 @@ func updateProgressHandler(c *gin.Context) {
 			UPDATE user_progress SET status = ? WHERE user_id = ? AND manga_id = ?
 		`, req.Status, userID, req.MangaID)
 		if err != nil {
-			log.Printf("Database error updating status: %v", err)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update status"})
 			return
 		}
 	}
 
-	log.Println("Database updated successfully")
-
 	var mangaTitle string
 	if err := database.DB.QueryRow("SELECT title FROM manga WHERE id = ?", req.MangaID).Scan(&mangaTitle); err != nil {
-		log.Printf("Error fetching manga title: %v", err)
 		mangaTitle = "Unknown Manga"
 	}
 
 	if username == "" {
-		if err := database.DB.QueryRow("SELECT username FROM users WHERE id = ?", userID).Scan(&username); err != nil {
-			log.Printf("Error fetching username: %v", err)
-			username = "Unknown User"
-		}
+		database.DB.QueryRow("SELECT username FROM users WHERE id = ?", userID).Scan(&username)
+		username = "Unknown User"
 	}
 
 	payload := shared.ProgressUpdate{
@@ -370,41 +444,17 @@ func updateProgressHandler(c *gin.Context) {
 		Timestamp:      time.Now().Unix(),
 	}
 
-	jsonData, err := json.Marshal(payload)
-	if err != nil {
-		log.Printf("Error marshaling payload: %v", err)
-		c.JSON(http.StatusOK, gin.H{"message": "Progress updated (broadcast failed)"})
-		return
-	}
-
-	log.Printf("Broadcasting progress update to TCP and UDP servers...")
-	log.Printf("   Payload: %s", string(jsonData))
+	jsonData, _ := json.Marshal(payload)
 
 	go func() {
 		resp, err := http.Post(tcpServerURL, "application/json", bytes.NewBuffer(jsonData))
 		if err != nil {
-			log.Printf("FAILED to broadcast to TCP server (%s): %v", tcpServerURL, err)
+			log.Printf("FAILED to broadcast to TCP server: %v", err)
 			return
 		}
 		defer resp.Body.Close()
 		if resp.StatusCode != http.StatusOK {
 			log.Printf("TCP server responded with status: %d", resp.StatusCode)
-		} else {
-			log.Printf("Successfully broadcasted to TCP server")
-		}
-	}()
-
-	go func() {
-		resp, err := http.Post(udpServerURL, "application/json", bytes.NewBuffer(jsonData))
-		if err != nil {
-			log.Printf("FAILED to broadcast to UDP server (%s): %v", udpServerURL, err)
-			return
-		}
-		defer resp.Body.Close()
-		if resp.StatusCode != http.StatusOK {
-			log.Printf("UDP server responded with status: %d", resp.StatusCode)
-		} else {
-			log.Printf("Successfully broadcasted to UDP server")
 		}
 	}()
 

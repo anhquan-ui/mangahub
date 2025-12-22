@@ -12,20 +12,20 @@ import (
 )
 
 func main() {
-	go udp.GlobalHub.Run()
+	go udp.GlobalHub.Run() // Start the global UDP hub (manages subscribers & broadcasts)
 
-	udp.StartUDPListener(":9094")
+	udp.StartUDPListener(":9091") // Start UDP listener on port 9091
 
 	router := gin.New()
 	router.POST("/internal/progress", receiveProgress)
 
 	log.Println("UDP Server running")
-	log.Println(" - UDP clients on :9094")
-	log.Println(" - Internal HTTP for API on :9095/internal/progress")
+	log.Println(" - UDP clients on :9091")
 
-	router.Run(":9095")
+	select{} // Block forever so the program doesn't exit
 }
 
+// receive manga progress updates
 func receiveProgress(c *gin.Context) {
 	var update shared.ProgressUpdate
 	if err := c.ShouldBindJSON(&update); err != nil {
@@ -37,6 +37,7 @@ func receiveProgress(c *gin.Context) {
 	log.Printf("   User: %s (ID: %s)", update.Username, update.UserID)
 	log.Printf("   Manga: %s → Chapter %d (%s)", update.MangaTitle, update.CurrentChapter, update.Status)
 
+	// Broadcast progress update to all UDP subscribers
 	udp.GlobalHub.BroadcastProgress(models.UserProgress{
 		UserID:         update.UserID,
 		MangaID:        update.MangaID,
@@ -44,8 +45,9 @@ func receiveProgress(c *gin.Context) {
 		Status:         update.Status,
 	}, update.Username, update.MangaTitle)
 
+	// Get number of active UDP subscribers
 	clientCount := udp.GlobalHub.GetClientCount()
 	log.Printf("BROADCAST SENT TO %d UDP SUBSCRIBER(S)", clientCount)
 
-	c.JSON(http.StatusOK, gin.H{"status": "broadcasted"})
+	c.JSON(http.StatusOK, gin.H{"status": "broadcasted"}) // Get number of active UDP subscribers
 }

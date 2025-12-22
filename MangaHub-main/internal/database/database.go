@@ -13,6 +13,8 @@ import (
 var DB *sql.DB
 
 // Initialize sets up the database connection and creates tables
+// This function must be called before any database operations.
+// It sets the global database.DB variable.
 func Initialize(dbPath string) error {
 	// Create directory if not exists
 	if err := os.MkdirAll("./data", os.ModePerm); err != nil {
@@ -81,6 +83,7 @@ func createTables() error {
 	return nil
 }
 
+// Seed manga table with data
 func SeedManga() error {
 	mangas := []models.Manga{
 		{ID:"one-piece", Title:"One Piece", Author:"Eiichiro Oda", Genres:[]string{"Action", "Adventure", "Shounen"}, Status:"ongoing", TotalChapters:1100, Description:"Pirate adventure"},
@@ -117,6 +120,21 @@ func SeedManga() error {
         {ID:"black-clover", Title:"Black Clover", Author:"Yūki Tabata", Genres:[]string{"Fantasy","Action","Adventure"}, Status:"completed", TotalChapters:368, Description:"A boy born without magic strives to become the Wizard King in a world where magic is everything."},
         {ID:"jujutsu-kaisen", Title:"Jujutsu Kaisen", Author:"Gege Akutami", Genres:[]string{"Supernatural","Action","Dark Fantasy"}, Status:"completed", TotalChapters:271, Description:"A high school student becomes involved in the dangerous world of curses and jujutsu sorcerers."},
         {ID:"boku-no-hero-academia", Title:"My Hero Academia", Author:"Kohei Horikoshi", Genres:[]string{"Superhero","Action","Drama"}, Status:"completed", TotalChapters:430, Description:"In a world where most people have superpowers, a powerless boy dreams of becoming a hero."},
+		{ID:"magi", Title:"Magi: The Labyrinth of Magic", Author:"Shinobu Ohtaka", Genres:[]string{"Adventure","Fantasy","Action"}, Status:"completed", TotalChapters:369, Description:"A magical adventure inspired by Arabian Nights following Aladdin and his allies."},
+        {ID:"claymore", Title:"Claymore", Author:"Norihiro Yagi", Genres:[]string{"Dark Fantasy","Action","Horror"}, Status:"completed", TotalChapters:155, Description:"Female warriors battle monstrous Yoma while struggling with their own humanity."},
+        {ID:"monster", Title:"Monster", Author:"Naoki Urasawa", Genres:[]string{"Mystery","Psychological","Thriller"}, Status:"completed", TotalChapters:162, Description:"A surgeon hunts a former patient who grew into a terrifying serial killer."},
+        {ID:"vagabond", Title:"Vagabond", Author:"Takehiko Inoue", Genres:[]string{"Historical","Action","Drama"}, Status:"hiatus", TotalChapters:327, Description:"A philosophical retelling of the life of legendary swordsman Miyamoto Musashi."},
+        {ID:"golden-kamuy", Title:"Golden Kamuy", Author:"Satoru Noda", Genres:[]string{"Historical","Action","Adventure"}, Status:"completed", TotalChapters:314, Description:"A treasure hunt in Hokkaido involving soldiers, criminals, and Ainu culture."},
+        {ID:"parasyte", Title:"Parasyte", Author:"Hitoshi Iwaaki", Genres:[]string{"Horror","Sci-Fi","Psychological"}, Status:"completed", TotalChapters:64, Description:"Alien parasites invade humanity by taking control of human bodies."},
+        {ID:"ajin", Title:"Ajin: Demi-Human", Author:"Gamon Sakurai", Genres:[]string{"Action","Horror","Supernatural"}, Status:"completed", TotalChapters:86, Description:"Immortal beings are hunted and exploited by the government."},
+        {ID:"erased", Title:"Erased", Author:"Kei Sanbe", Genres:[]string{"Mystery","Thriller","Supernatural"}, Status:"completed", TotalChapters:44, Description:"A man travels back to his childhood to prevent a series of murders."},
+        {ID:"blue-lock", Title:"Blue Lock", Author:"Muneyuki Kaneshiro & Yusuke Nomura", Genres:[]string{"Sports","Drama","Psychological"}, Status:"ongoing", TotalChapters:300, Description:"Strikers compete in a ruthless program to create Japan’s ultimate soccer ace."},
+        {ID:"ping-pong", Title:"Ping Pong", Author:"Taiyo Matsumoto", Genres:[]string{"Sports","Drama"}, Status:"completed", TotalChapters:55, Description:"A realistic and emotional take on competitive table tennis."},
+        {ID:"fire-punch", Title:"Fire Punch", Author:"Tatsuki Fujimoto", Genres:[]string{"Dark Fantasy","Action","Psychological"}, Status:"completed", TotalChapters:83, Description:"A cursed man who burns eternally seeks meaning in a cruel frozen world."},
+        {ID:"pluto", Title:"Pluto", Author:"Naoki Urasawa", Genres:[]string{"Sci-Fi","Mystery","Psychological"}, Status:"completed", TotalChapters:65, Description:"A robot detective investigates murders tied to the world’s strongest robots."},
+        {ID:"gantz", Title:"Gantz", Author:"Hiroya Oku", Genres:[]string{"Action","Sci-Fi","Horror"}, Status:"completed", TotalChapters:383, Description:"Dead people are forced into deadly alien-hunting games."},
+        {ID:"land-of-the-lustrous", Title:"Land of the Lustrous", Author:"Haruko Ichikawa", Genres:[]string{"Fantasy","Psychological","Action"}, Status:"completed", TotalChapters:108, Description:"Gem-based beings fight mysterious invaders while questioning identity and purpose."},
+        {ID:"grand-blue", Title:"Grand Blue", Author:"Kenji Inoue & Kimitake Yoshioka", Genres:[]string{"Comedy","Slice of Life"}, Status:"ongoing", TotalChapters:100, Description:"College life chaos centered around diving, alcohol, and friendship."},
 	}
 
 	for _, m := range mangas {

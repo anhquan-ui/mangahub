@@ -27,13 +27,16 @@ type Manga struct {
 	Description   string   `json:"description" db:"description"`
 }
 
-// In Manga struct, add PostScan to convert GenresString to []string
+// PostScan processes the Manga struct after scanning from the database.
+// It converts the genres string (comma-separated) into a slice of strings.
+// This method should be called after sql.Rows.Scan() on a Manga struct.
 func (m *Manga) PostScan() {
 	if m.GenresString != "" {
 		m.Genres = strings.Split(m.GenresString, ",")
 	}
 }
 
+// PreSave prepares the Manga struct before saving to the database.
 // To save to DB, convert []string to string
 func (m *Manga) PreSave() {
 	if len(m.Genres) > 0 {

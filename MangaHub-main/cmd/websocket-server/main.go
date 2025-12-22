@@ -1,42 +1,42 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
 	"path/filepath"
 	"time"
-	"encoding/json"
 
 	"mangahub/internal/websocket"
 
 	"github.com/gin-gonic/gin"
-	ws "github.com/gorilla/websocket"
+	gorilla "github.com/gorilla/websocket" // avoid cònlict
 )
 
-var upgrader = ws.Upgrader{
+// WebSocket upgrader configuration
+var upgrader = gorilla.Upgrader{
 	ReadBufferSize:  1024,
 	WriteBufferSize: 1024,
 	CheckOrigin: func(r *http.Request) bool {
-		return true // Allow all origins for development
+		return true
 	},
 }
 
-var hub *websocket.Hub
+var hub *websocket.Hub // Global WebSocket hub instance
 
 func main() {
-	// Create and start hub
 	hub = websocket.NewHub()
 	go hub.Run()
 
-	// Create Gin router
 	router := gin.Default()
 
-	// CORS middleware
+	// Simple CORS middleware (allows browser WebSocket connections)
 	router.Use(func(c *gin.Context) {
 		c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
 		c.Writer.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+		// Handle preflight requests
 		if c.Request.Method == "OPTIONS" {
 			c.AbortWithStatus(204)
 			return
@@ -44,80 +44,78 @@ func main() {
 		c.Next()
 	})
 
-	// Serve chat HTML page
+	// Serve chat UI HTML file
 	router.GET("/", func(c *gin.Context) {
 		c.File(filepath.Join("web", "chat.html"))
 	})
 
-	// WebSocket endpoint
+	// WebSocket upgrade endpoint
 	router.GET("/ws", handleWebSocket)
 
-	// Stats endpoint
+	// Server statistics endpoint
 	router.GET("/stats", func(c *gin.Context) {
-		c.JSON(200, gin.H{
+		c.JSON(http.StatusOK, gin.H{
 			"online_users": hub.GetClientCount(),
 			"timestamp":    time.Now().Format("15:04:05"),
 		})
 	})
 
-	fmt.Println("🚀 WebSocket Chat Server started on :9093")
-	fmt.Println("📱 Open your browser: http://localhost:9093")
-
+	fmt.Println("🚀 WebSocket Chat Server (Multiple Rooms) started on :9093")
+	fmt.Println("📱 Open: http://localhost:9093")
+	// Start HTTP server
 	if err := router.Run(":9093"); err != nil {
 		log.Fatal("Failed to start server:", err)
 	}
 }
 
+// Handles incoming WebSocket connection requests
 func handleWebSocket(c *gin.Context) {
 	username := c.Query("username")
+	room := c.Query("room")
+	// Default room if not provided
+	if room == "" {
+		room = "general"
+	}
 	if username == "" {
-		c.JSON(400, gin.H{"error": "username required"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "username required"})
 		return
 	}
 
 	// Upgrade HTTP connection to WebSocket
 	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
 	if err != nil {
-		log.Printf("Failed to upgrade connection: %v", err)
+		log.Printf("Upgrade error: %v", err)
 		return
 	}
 
-	// Create new client
+	// Create a new WebSocket client
 	client := &websocket.Client{
 		Hub:      hub,
 		Conn:     conn,
 		Send:     make(chan []byte, 256),
 		Username: username,
+		Room:     room,
 	}
 
-	// Register client
 	hub.Register <- client
 
-	// Send message history to new user
-	history := hub.GetMessageHistory()
-	for _, msg := range history {
-		data, _ := json.Marshal(msg)
-		client.Send <- data
+	// Send recent message history for the room
+	history := hub.GetMessageHistory(room)
+    for _, msg := range history {
+        data, _ := json.Marshal(msg)
+        client.Send <- data
+    }
+
+	// Broadcast system "join" message
+	joinMsg := websocket.Message{
+		Type: "system",
+		Text: fmt.Sprintf("%s joined the room", username),
+		Time: time.Now().Format("15:04"),
+		Room: room,
 	}
+	data, _ := json.Marshal(joinMsg)
+	hub.Broadcast <- data
 
-	// Send join message to all
-	hub.BroadcastMessage(websocket.Message{
-		Type:     "system",
-		Text:     fmt.Sprintf("%s joined the chat", username),
-		Time:     time.Now().Format("15:04:05"),
-	})
-
-	// Start goroutines for reading and writing
 	go client.WritePump()
-	
-	// ReadPump will handle unregister in its defer
-	go func() {
-		client.ReadPump()
-		// Send leave message after client disconnects
-		hub.BroadcastMessage(websocket.Message{
-			Type:     "system",
-			Text:     fmt.Sprintf("%s left the chat", username),
-			Time:     time.Now().Format("15:04:05"),
-		})
-	}()
+	go client.ReadPump()
 }

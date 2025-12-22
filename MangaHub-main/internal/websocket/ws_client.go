@@ -2,43 +2,28 @@ package websocket
 
 import (
 	"encoding/json"
-	"log"
 	"time"
 
 	"github.com/gorilla/websocket"
 )
 
 const (
-	// Time allowed to write a message to the peer
-	writeWait = 10 * time.Second
-
-	// Time allowed to read the next pong message from the peer
-	pongWait = 60 * time.Second
-
-	// Send pings to peer with this period (must be less than pongWait)
-	pingPeriod = 54 * time.Second
-
-	// Maximum message size allowed from peer
+	writeWait      = 10 * time.Second
+	pongWait       = 60 * time.Second
+	pingPeriod     = 54 * time.Second
 	maxMessageSize = 512
 )
 
-// Client represents a websocket client
-type Client struct {
-	Hub      *Hub
-	Conn     *websocket.Conn
-	Send     chan []byte
-	Username string
-}
-
-// ReadPump pumps messages from the websocket connection to the hub
+// ReadPump reads messages from the WebSocket client
 func (c *Client) ReadPump() {
 	defer func() {
-		c.Hub.Unregister <- c
+		c.Hub.Unregister <- c  // Remove client
 		c.Conn.Close()
 	}()
 
-	c.Conn.SetReadLimit(maxMessageSize)
-	c.Conn.SetReadDeadline(time.Now().Add(pongWait))
+	c.Conn.SetReadLimit(maxMessageSize) // Limit size of incoming messages 
+	c.Conn.SetReadDeadline(time.Now().Add(pongWait)) // Set initial read deadline (connection timeout)
+	// Reset read deadline every time a pong is received
 	c.Conn.SetPongHandler(func(string) error {
 		c.Conn.SetReadDeadline(time.Now().Add(pongWait))
 		return nil
@@ -47,38 +32,33 @@ func (c *Client) ReadPump() {
 	for {
 		_, data, err := c.Conn.ReadMessage()
 		if err != nil {
-			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
-				log.Printf("error: %v", err)
-			}
 			break
 		}
 
 		var msg Message
 		if err := json.Unmarshal(data, &msg); err != nil {
-			log.Printf("Error unmarshaling message: %v", err)
 			continue
 		}
 
-		// Handle typing indicator — broadcast to all (but don't save to history)
-		if msg.Type == "typing" {
-			msg.Username = c.Username
-			msg.Time = time.Now().Format("15:04:05")
-			typingData, _ := json.Marshal(msg)
-			c.Hub.Broadcast <- typingData
-			continue
-		}
-
-		// Normal chat message
+		// Set server-side fields
 		msg.Username = c.Username
-		msg.Type = "chat"
-		msg.Time = time.Now().Format("15:04:05")
+		msg.Time = time.Now().Format("15:04")
+		msg.Room = c.Room
 
-		c.Hub.BroadcastMessage(msg)
+		// Re-marshal the message with updated fields
+		messageData, err := json.Marshal(msg)
+		if err != nil {
+			continue
+		}
+
+		// Broadcast the properly formatted message
+		c.Hub.Broadcast <- messageData
 	}
 }
 
-// WritePump pumps messages from the hub to the websocket connection
+// WritePump sends messages and heartbeats to the WebSocket client
 func (c *Client) WritePump() {
+	// Ticker sends periodic ping messages
 	ticker := time.NewTicker(pingPeriod)
 	defer func() {
 		ticker.Stop()
@@ -90,17 +70,16 @@ func (c *Client) WritePump() {
 		case message, ok := <-c.Send:
 			c.Conn.SetWriteDeadline(time.Now().Add(writeWait))
 			if !ok {
-				// Hub closed the channel
+				// Channel closed, tell client to close connection
 				c.Conn.WriteMessage(websocket.CloseMessage, []byte{})
 				return
 			}
+			c.Conn.WriteMessage(websocket.TextMessage, message)
 
-			if err := c.Conn.WriteMessage(websocket.TextMessage, message); err != nil {
-				return
-			}
-
+		// Send periodic ping to keep connection alive
 		case <-ticker.C:
 			c.Conn.SetWriteDeadline(time.Now().Add(writeWait))
+			// If ping fails, client is considered disconnected
 			if err := c.Conn.WriteMessage(websocket.PingMessage, nil); err != nil {
 				return
 			}

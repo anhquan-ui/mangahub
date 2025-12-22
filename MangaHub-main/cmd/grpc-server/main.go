@@ -13,7 +13,7 @@ import (
 )
 
 func main() {
-	// Open database (use your existing database)
+	// Open database 
 	db, err := sql.Open("sqlite", "./data/mangahub.db")
 	if err != nil {
 		log.Fatalf("Failed to open database: %v", err)

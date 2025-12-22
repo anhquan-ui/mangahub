@@ -18,7 +18,8 @@ type MangaServiceServer struct {
 	db *sql.DB
 }
 
-// NewMangaServiceServer creates a new gRPC service
+// NewMangaServiceServer creates a new gRPC service implementation for manga operations
+// This server provides gRPC endpoints for getting, searching, and updating manga progress.
 func NewMangaServiceServer(db *sql.DB) *MangaServiceServer {
 	return &MangaServiceServer{db: db}
 }

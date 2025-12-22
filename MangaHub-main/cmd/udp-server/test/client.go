@@ -1,4 +1,4 @@
-package udp
+package main
 
 import (
 	"log"
@@ -8,7 +8,7 @@ import (
 
 func main() {
 	// Connect to server
-	serverAddr, err := net.ResolveUDPAddr("udp", "localhost:9092")
+	serverAddr, err := net.ResolveUDPAddr("udp", "localhost:9091")
 	if err != nil {
 		log.Fatal("Resolve error:", err)
 	}

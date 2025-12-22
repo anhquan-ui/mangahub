@@ -2,7 +2,9 @@
 <html>
 <head>
     <title>MangaHub Chat Room</title>
+    <meta charset="UTF-8">
     <style>
+        /* ALL YOUR CSS FROM BEFORE — KEEP EXACTLY AS IS */
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -37,7 +39,18 @@
             justify-content: space-between;
             align-items: center;
         }
-        .header h1 { font-size: 24px; }
+        .header h1 { 
+            font-size: 24px; 
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 60%;
+        }
+        #roomDisplay {
+            font-size: 18px;
+            margin-left: 10px;
+            opacity: 0.9;
+        }
         .header-right {
             display: flex;
             gap: 15px;
@@ -73,7 +86,7 @@
         body.dark-mode #login-screen p {
             color: #e4e6eb;
         }
-        #login-screen input {
+        #login-screen input, #login-screen select {
             width: 300px;
             padding: 15px;
             margin: 10px;
@@ -81,7 +94,8 @@
             border-radius: 8px;
             font-size: 16px;
         }
-        body.dark-mode #login-screen input {
+        body.dark-mode #login-screen input,
+        body.dark-mode #login-screen select {
             background: #3a3b3c;
             border-color: #667eea;
             color: #e4e6eb;
@@ -116,7 +130,6 @@
             background: #18191a;
         }
         
-        /* Message Container */
         .message-wrapper {
             margin: 8px 0;
             display: flex;
@@ -128,12 +141,10 @@
             to { opacity: 1; transform: translateY(0); }
         }
         
-        /* Own messages - Right side */
         .message-wrapper.own {
             justify-content: flex-end;
         }
         
-        /* Other messages - Left side */
         .message-wrapper.other {
             justify-content: flex-start;
         }
@@ -146,14 +157,12 @@
             word-wrap: break-word;
         }
         
-        /* Own message styling - Messenger blue */
         .message-wrapper.own .message {
             background: #0084ff;
             color: white;
             border-bottom-right-radius: 4px;
         }
         
-        /* Other message styling - Gray */
         .message-wrapper.other .message {
             background: #e4e6eb;
             color: #050505;
@@ -187,7 +196,6 @@
             display: block;
         }
         
-        /* System messages - Center */
         .message-wrapper.system {
             justify-content: center;
             margin: 15px 0;
@@ -206,7 +214,6 @@
             color: #b0b3b8;
         }
         
-        /* Typing Indicator - FIXED AT BOTTOM */
         #typing-indicator {
             display: none;
             padding: 15px 20px;
@@ -322,7 +329,6 @@
         .status.connected { color: #31a24c; }
         .status.disconnected { color: #fa383e; }
 
-        /* Confirmation Modal */
         .modal {
             display: none;
             position: fixed;
@@ -332,11 +338,6 @@
             width: 100%;
             height: 100%;
             background-color: rgba(0,0,0,0.6);
-            animation: fadeIn 0.2s;
-        }
-        @keyframes fadeIn {
-            from { opacity: 0; }
-            to { opacity: 1; }
         }
         .modal-content {
             background-color: white;
@@ -347,11 +348,6 @@
             max-width: 400px;
             text-align: center;
             box-shadow: 0 10px 40px rgba(0,0,0,0.3);
-            animation: slideDown 0.3s;
-        }
-        @keyframes slideDown {
-            from { transform: translateY(-50px); opacity: 0; }
-            to { transform: translateY(0); opacity: 1; }
         }
         body.dark-mode .modal-content {
             background-color: #242526;
@@ -400,7 +396,6 @@
             background: #d8dadf;
         }
 
-        /* Scrollbar */
         #messages::-webkit-scrollbar {
             width: 8px;
         }
@@ -419,7 +414,7 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1>🎌 MangaHub Chat</h1>
+            <h1>🎌 MangaHub Chat<span id="roomDisplay">(General)</span></h1>
             <div class="header-right">
                 <button class="dark-mode-toggle" onclick="toggleDarkMode()" title="Toggle Dark Mode">🌙</button>
                 <div class="online-count">👥 <span id="onlineCount">0</span> online</div>
@@ -429,15 +424,26 @@
         <!-- Login Screen -->
         <div id="login-screen">
             <h2>Welcome to MangaHub Chat!</h2>
-            <p style="color: #666; margin: 10px 0;">Discuss your favorite manga with other readers</p>
+            <p style="color: #666; margin: 10px 0;">Join a room to discuss your favorite manga</p>
             <input type="text" id="usernameInput" placeholder="Enter your username" maxlength="20">
-            <button onclick="joinChat()">Join Chat</button>
+            
+            <select id="roomSelect">
+                <option value="general">General Discussion</option>
+                <option value="one-piece">One Piece</option>
+                <option value="naruto">Naruto</option>
+                <option value="attack-on-titan">Attack on Titan</option>
+                <option value="demon-slayer">Demon Slayer</option>
+                <option value="jujutsu-kaisen">Jujutsu Kaisen</option>
+                <option value="my-hero-academia">My Hero Academia</option>
+                <option value="dragon-ball">Dragon Ball</option>
+            </select>
+            
+            <button onclick="joinChat()">Join Room</button>
         </div>
 
         <!-- Chat Screen -->
         <div id="chat-screen">
             <div id="messages"></div>
-            <!-- Typing Indicator - Fixed at bottom -->
             <div id="typing-indicator">
                 <span id="typing-user"></span> is typing<span class="typing-dots"><span></span><span></span><span></span></span>
             </div>
@@ -451,7 +457,6 @@
         <div class="status" id="status">Enter your username to join</div>
     </div>
 
-    <!-- Confirmation Modal -->
     <div id="leaveModal" class="modal">
         <div class="modal-content">
             <h2>Leave Chat?</h2>
@@ -464,18 +469,17 @@
     </div>
 
     <script>
-        let ws;
-        let username;
+        let ws = null;
+        let username = "";
+        let currentRoom = "general";
         let shouldReconnect = false;
         let typingTimeout;
-        let isTyping = false; // Track typing state
+        let isTyping = false;
 
-        // Dark mode
         function toggleDarkMode() {
             document.body.classList.toggle('dark-mode');
             localStorage.setItem('darkMode', document.body.classList.contains('dark-mode'));
-            const toggle = document.querySelector('.dark-mode-toggle');
-            toggle.textContent = document.body.classList.contains('dark-mode') ? '☀️' : '🌙';
+            document.querySelector('.dark-mode-toggle').textContent = document.body.classList.contains('dark-mode') ? '☀️' : '🌙';
         }
 
         if (localStorage.getItem('darkMode') === 'true') {
@@ -485,17 +489,23 @@
 
         function joinChat() {
             username = document.getElementById('usernameInput').value.trim();
+            currentRoom = document.getElementById('roomSelect').value || "general";
+
             if (!username) {
                 alert('Please enter a username');
                 return;
             }
+
+            const roomName = currentRoom.charAt(0).toUpperCase() + currentRoom.slice(1).replace(/-/g, ' ');
+            document.getElementById('roomDisplay').textContent = `(${roomName})`;
 
             shouldReconnect = true;
             connectWebSocket();
         }
 
         function connectWebSocket() {
-            ws = new WebSocket('ws://localhost:9093/ws?username=' + encodeURIComponent(username));
+            const url = `ws://localhost:9093/ws?username=${encodeURIComponent(username)}&room=${encodeURIComponent(currentRoom)}`;
+            ws = new WebSocket(url);
 
             ws.onopen = function() {
                 document.getElementById('login-screen').style.display = 'none';
@@ -505,16 +515,15 @@
             };
 
             ws.onmessage = function(event) {
-                const data = event.data;
                 try {
-                    const msg = JSON.parse(data);
+                    const msg = JSON.parse(event.data);
                     if (msg.type === 'typing') {
                         showTypingIndicator(msg.username);
                     } else {
                         displayMessage(msg);
                     }
                 } catch (e) {
-                    console.log('Non-JSON message:', data);
+                    console.log('Non-JSON:', event.data);
                 }
             };
 
@@ -531,7 +540,12 @@
             const input = document.getElementById('messageInput');
             const text = input.value.trim();
             if (text && ws && ws.readyState === WebSocket.OPEN) {
-                ws.send(JSON.stringify({ text: text }));
+                const msg = {
+                    type: "chat",
+                    text: text,
+                    room: currentRoom
+                };
+                ws.send(JSON.stringify(msg));
                 input.value = '';
                 isTyping = false;
             }
@@ -544,22 +558,16 @@
 
             if (msg.type === 'system') {
                 wrapper.className = 'message-wrapper system';
+                wrapper.innerHTML = `<div class="message">${escapeHtml(msg.text)}</div>`;
+            } else if (msg.type === 'chat' && msg.text) {
+                wrapper.className = 'message-wrapper ' + (isOwn ? 'own' : 'other');
                 wrapper.innerHTML = `
                     <div class="message">
-                        ${escapeHtml(msg.text)}
+                        <span class="username" style="color: ${getColorForUser(msg.username)}">${escapeHtml(msg.username)}</span>
+                        <div class="text">${escapeHtml(msg.text)}</div>
+                        <span class="time">${msg.time || ''}</span>
                     </div>
                 `;
-            } else if (msg.type === 'chat') {
-                if (msg.text && msg.text.trim() !== '') {
-                    wrapper.className = 'message-wrapper ' + (isOwn ? 'own' : 'other');
-                    wrapper.innerHTML = `
-                        <div class="message">
-                            <span class="username" style="color: ${getColorForUser(msg.username)}">${escapeHtml(msg.username)}</span>
-                            <div class="text">${escapeHtml(msg.text)}</div>
-                            <span class="time">${msg.time}</span>
-                        </div>
-                    `;
-                }
             }
 
             messagesDiv.appendChild(wrapper);
@@ -573,7 +581,7 @@
                 clearTimeout(typingTimeout);
                 typingTimeout = setTimeout(() => {
                     document.getElementById('typing-indicator').style.display = 'none';
-                }, 7000); 
+                }, 7000);
             }
         }
 
@@ -601,10 +609,7 @@
         }
 
         function leaveChat() {
-            if (ws) {
-                ws.close();
-                ws = null;
-            }
+            if (ws) ws.close();
             document.getElementById('login-screen').style.display = 'flex';
             document.getElementById('chat-screen').style.display = 'none';
             document.getElementById('messages').innerHTML = '';
@@ -619,9 +624,9 @@
 
         function updateOnlineCount() {
             fetch('http://localhost:9093/stats')
-                .then(res => res.json())
+                .then(r => r.json())
                 .then(data => {
-                    document.getElementById('onlineCount').textContent = data.online_users;
+                    document.getElementById('onlineCount').textContent = data.online_users || 0;
                 })
                 .catch(() => {});
         }
@@ -632,43 +637,43 @@
             return div.innerHTML;
         }
 
-        // Typing indicator - immediate, one per session, 10s timeout
-        document.addEventListener('DOMContentLoaded', function() {
+        // SINGLE DOMContentLoaded — ALL EVENT LISTENERS HERE
+        document.addEventListener('DOMContentLoaded', () => {
             const messageInput = document.getElementById('messageInput');
             if (messageInput) {
                 messageInput.addEventListener('input', function() {
-                    if (ws && ws.readyState === WebSocket.OPEN && this.value.trim() !== '' && !isTyping) {
-                        ws.send(JSON.stringify({ type: 'typing', username: username }));
+                    if (ws && ws.readyState === WebSocket.OPEN && this.value.trim() && !isTyping) {
+                        ws.send(JSON.stringify({
+                            type: 'typing',
+                            username: username,
+                            room: currentRoom
+                        }));
                         isTyping = true;
-                    }
-                });
-
-                messageInput.addEventListener('keypress', function(e) {
-                    if (e.key === 'Enter') {
-                        sendMessage();
+                    } else if (!this.value.trim()) {
                         isTyping = false;
                     }
                 });
-            }
 
-            const usernameInput = document.getElementById('usernameInput');
-            if (usernameInput) {
-                usernameInput.addEventListener('keypress', function(e) {
+                messageInput.addEventListener('keypress', e => {
                     if (e.key === 'Enter') {
-                        joinChat();
+                        sendMessage();
                     }
                 });
             }
+
+            document.getElementById('usernameInput')?.addEventListener('keypress', e => {
+                if (e.key === 'Enter') {
+                    joinChat();
+                }
+            });
 
             setInterval(updateOnlineCount, 5000);
         });
 
-        window.onclick = function(event) {
+        window.onclick = event => {
             const modal = document.getElementById('leaveModal');
-            if (event.target === modal) {
-                modal.style.display = 'none';
-            }
-        }
+            if (event.target === modal) modal.style.display = 'none';
+        };
     </script>
 </body>
 </html>
