@@ -84,6 +84,16 @@ func main() {
 
 	log.Println("API Server starting on http://localhost:8080")
 	log.Println("Swagger docs: http://localhost:8080/swagger/index.html")
+
+	// Serve static web files
+	router.Static("/web", "./web")
+	router.StaticFS("/static", http.Dir("./web"))
+
+	// Serve search_manga.html as the main page at root /
+	router.GET("/search_manga.html", func(c *gin.Context) {
+		c.File("./web/search_manga.html")
+	})
+
 	router.Run(":8080")
 }
 
