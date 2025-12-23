@@ -46,7 +46,7 @@ func main() {
 
 	// Serve chat UI HTML file
 	router.GET("/", func(c *gin.Context) {
-		c.File(filepath.Join("web", "chat.html"))
+		c.File(filepath.Join("web", "broadcast_chatroom.html"))
 	})
 
 	// WebSocket upgrade endpoint
@@ -101,10 +101,10 @@ func handleWebSocket(c *gin.Context) {
 
 	// Send recent message history for the room
 	history := hub.GetMessageHistory(room)
-    for _, msg := range history {
-        data, _ := json.Marshal(msg)
-        client.Send <- data
-    }
+	for _, msg := range history {
+		data, _ := json.Marshal(msg)
+		client.Send <- data
+	}
 
 	// Broadcast system "join" message
 	joinMsg := websocket.Message{

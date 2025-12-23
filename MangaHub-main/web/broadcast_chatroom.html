@@ -504,7 +504,8 @@
         }
 
         function connectWebSocket() {
-            const url = `ws://localhost:9093/ws?username=${encodeURIComponent(username)}&room=${encodeURIComponent(currentRoom)}`;
+            //const url = `ws://localhost:9093/ws?username=${encodeURIComponent(username)}&room=${encodeURIComponent(currentRoom)}`;
+            const url = `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}/ws?username=${encodeURIComponent(username)}&room=${encodeURIComponent(currentRoom)}`;
             ws = new WebSocket(url);
 
             ws.onopen = function() {
@@ -623,7 +624,7 @@
         }
 
         function updateOnlineCount() {
-            fetch('http://localhost:9093/stats')
+            fetch('/stats')
                 .then(r => r.json())
                 .then(data => {
                     document.getElementById('onlineCount').textContent = data.online_users || 0;
