@@ -24,6 +24,7 @@ import (
 )
 
 const tcpServerURL = "http://localhost:9091/internal/progress"
+const udpServerURL = "http://localhost:9094/internal/progress"
 
 // Request types for Swagger
 type AddToLibraryRequest struct {
@@ -466,6 +467,18 @@ func updateProgressHandler(c *gin.Context) {
 		defer resp.Body.Close()
 		if resp.StatusCode != http.StatusOK {
 			log.Printf("TCP server responded with status: %d", resp.StatusCode)
+		}
+	}()
+
+	go func() {
+		resp, err := http.Post(udpServerURL, "application/json", bytes.NewBuffer(jsonData))
+		if err != nil {
+			log.Printf("FAILED to broadcast to UDP server: %v", err)
+			return
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			log.Printf("UDP server responded with status: %d", resp.StatusCode)
 		}
 	}()
 
